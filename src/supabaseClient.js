@@ -1,8 +1,20 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js"
 
-// Ensure environment variables are defined
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// Export supabase as a named export
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error("Supabase URL or Anon Key is missing. Please check your environment variables.")
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+// Test the connection
+supabase.auth.getSession().then(({ data, error }) => {
+  if (error) {
+    console.error("Error connecting to Supabase:", error)
+  } else {
+    console.log("Successfully connected to Supabase")
+  }
+})
+

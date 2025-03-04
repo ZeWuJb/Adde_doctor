@@ -1,80 +1,132 @@
+"use client"
+
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { UserAuth } from "../context/AuthContext";
+import { Mail, Lock, User } from "lucide-react";
 
 const Signup = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("doctor"); // Default role is "doctor"
+  const [role, setRole] = useState("doctor");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false); // Use boolean for loading state
-  const { session, signUpNewUser } = UserAuth(); 
-  console.log(session);// Get signUpNewUser from context
+  const [loading, setLoading] = useState(false);
+  const { signUpNewUser } = UserAuth();
   const navigate = useNavigate();
 
   const handleSignUp = async (e) => {
     e.preventDefault();
-    setLoading(true); // Start loading
+    setLoading(true);
+    setError("");
 
     try {
-      // Call signUpNewUser with email, password, and selected role
       const result = await signUpNewUser(email, password, role);
 
       if (result.success) {
-        navigate("/signin"); // Redirect to sign-in page after successful sign-up
+        console.log("Sign-up successful:", result.data);
+        navigate("/signin");
       } else {
-        setError(result.error.message || "Sign-up failed."); // Show error message
+        console.error("Sign-up failed:", result.error);
+        setError(result.error.message || "Sign-up failed. Please try again.");
       }
     } catch (err) {
-      setError("An unexpected error occurred.",err); // Handle unexpected errors
+      console.error("Unexpected error during sign-up:", err);
+      setError("An unexpected error occurred. Please try again.");
     } finally {
-      setLoading(false); // Stop loading
+      setLoading(false);
     }
   };
 
   return (
-    <div>
-      <form onSubmit={handleSignUp} className="max-w-md m-auto pt-24">
-        <h2 className="font-bold pb-2">Signup</h2>
-        <div className="flex flex-col py-4">
-          {/* Email Input */}
-          <input
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            className="p-3 mt-6"
-            type="email"
-            required
-          />
-          {/* Password Input */}
-          <input
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-            className="p-3 mt-6"
-            type="password"
-            required
-          />
-          {/* Role Selection Dropdown */}
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className="p-3 mt-6"
-            required
-          >
-            <option value="doctor">Doctor</option>
-            <option value="admin">Admin</option>
-          </select>
-          {/* Submit Button */}
-          <button type="submit" disabled={loading} className="mt-6 w-full">
-            {loading ? "Signing up..." : "Sign up"} {/* Show loading text */}
-          </button>
-          {/* Error Message */}
-          {error && <p className="text-red-600 text-center pt-4">{error}</p>}
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full bg-white p-8 shadow-xl rounded-2xl">
+        <div className="text-center">
+          <h2 className="text-3xl font-extrabold text-gray-900">CareSync</h2>
+          <p className="mt-2 text-sm text-gray-600">Create your account</p>
         </div>
-        {/* Link to Sign In */}
-        <p className="mt-6">
-          Already have an account? <Link to="/signin">Sign in</Link>
-        </p>
-      </form>
+        <form className="mt-6 space-y-6" onSubmit={handleSignUp}>
+          {/* Email Input */}
+          <div className="relative">
+            <Mail className="absolute left-3 top-3.5 text-gray-400 h-5 w-5" />
+            <input
+              id="email-address"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full pl-10 p-3 border border-gray-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
+              placeholder="Email address"
+            />
+          </div>
+
+          {/* Password Input */}
+          <div className="relative">
+            <Lock className="absolute left-3 top-3.5 text-gray-400 h-5 w-5" />
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full pl-10 p-3 border border-gray-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
+              placeholder="Password"
+            />
+          </div>
+
+          {/* Role Dropdown */}
+          <div className="relative">
+            <User className="absolute left-3 top-3.5 text-gray-400 h-5 w-5" />
+            <select
+              id="role"
+              name="role"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="w-full pl-10 p-3 border border-gray-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+              required
+            >
+              <option value="doctor">Doctor</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <>
+                <div className="h-5 w-5 animate-spin border-2 border-white border-t-transparent rounded-full mr-2"></div>
+                Signing up...
+              </>
+            ) : (
+              "Sign up"
+            )}
+          </button>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mt-2 p-3 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg text-sm">
+              <strong>Error:</strong> {error}
+            </div>
+          )}
+        </form>
+
+        {/* Sign-in Redirect */}
+        <div className="text-center mt-4">
+          <p className="text-sm text-gray-600">
+            Already have an account?{" "}
+            <Link to="/signin" className="font-medium text-blue-600 hover:text-blue-500">
+              Sign in
+            </Link>
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

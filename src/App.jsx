@@ -1,12 +1,8 @@
-import Signup from "./components/Signup"
+import { Navigate } from "react-router-dom"
 
 function App() {
-  
-  return (
-    <>
-      <Signup/>
-    </>
-  )
+  return <Navigate to="/signin" replace />
 }
 
 export default App
+

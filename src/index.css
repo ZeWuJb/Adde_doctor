@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -16,18 +15,32 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Healthcare theme colors */
+  --color-primary: #2c7a7b; /* Teal 700 */
+  --color-primary-light: #4fd1c5; /* Teal 400 */
+  --color-primary-dark: #285e61; /* Teal 800 */
+  --color-secondary: #3182ce; /* Blue 600 */
+  --color-secondary-light: #63b3ed; /* Blue 400 */
+  --color-accent: #38b2ac; /* Teal 500 */
+  --color-success: #48bb78; /* Green 500 */
+  --color-warning: #ecc94b; /* Yellow 500 */
+  --color-danger: #f56565; /* Red 500 */
+  --color-info: #4299e1; /* Blue 500 */
+  --color-background: #f7fafc; /* Gray 100 */
+  --color-surface: #ffffff;
+  --color-text: #2d3748; /* Gray 800 */
+  --color-text-light: #718096; /* Gray 600 */
 }
 
 a {
   font-weight: 500;
-  color: #646cff;
+  color: var(--color-secondary);
   text-decoration: inherit;
 }
 a:hover {
-  color: #535bf2;
+  color: var(--color-secondary-light);
 }
-
-
 
 h1 {
   font-size: 3.2em;
@@ -46,7 +59,7 @@ button {
   transition: border-color 0.25s;
 }
 button:hover {
-  border-color: #646cff;
+  border-color: var(--color-primary-light);
 }
 button:focus,
 button:focus-visible {
@@ -59,9 +72,171 @@ button:focus-visible {
     background-color: #ffffff;
   }
   a:hover {
-    color: #747bff;
+    color: var(--color-primary);
   }
   button {
     background-color: #f9f9f9;
   }
 }
+
+/* Healthcare specific styles */
+.health-gradient {
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+}
+
+.health-card {
+  @apply bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300;
+  border-top: 3px solid var(--color-primary);
+}
+
+.health-stat-card {
+  @apply bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden;
+}
+
+.health-table {
+  @apply w-full text-sm text-left text-gray-700;
+}
+
+.health-table thead {
+  @apply text-xs uppercase bg-gray-50 text-gray-600;
+}
+
+.health-table th {
+  @apply px-6 py-3 font-medium;
+}
+
+.health-table td {
+  @apply px-6 py-4 border-b border-gray-100;
+}
+
+.health-table tr:hover {
+  @apply bg-gray-50;
+}
+
+.health-badge {
+  @apply px-2.5 py-0.5 text-xs font-medium rounded-full;
+}
+
+.health-badge-success {
+  @apply bg-green-100 text-green-800;
+}
+
+.health-badge-warning {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+.health-badge-danger {
+  @apply bg-red-100 text-red-800;
+}
+
+.health-badge-info {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.health-sidebar {
+  background-color: var(--color-surface);
+  border-right: 1px solid #e2e8f0;
+}
+
+.health-sidebar-header {
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+}
+
+.health-nav-item {
+  @apply flex items-center px-4 py-2.5 text-gray-700 rounded-lg transition-colors duration-200;
+}
+
+.health-nav-item:hover {
+  @apply bg-teal-50 text-teal-700;
+}
+
+.health-nav-item.active {
+  @apply bg-teal-100 text-teal-800 font-medium;
+}
+
+.health-nav-item .icon {
+  @apply mr-3 text-gray-500;
+}
+
+.health-nav-item.active .icon {
+  @apply text-teal-600;
+}
+
+.health-nav-item:hover .icon {
+  @apply text-teal-600;
+}
+
+.health-btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-colors duration-200;
+}
+
+.health-btn-primary {
+  background-color: var(--color-primary);
+  @apply text-white;
+}
+
+.health-btn-primary:hover {
+  background-color: var(--color-primary-dark);
+}
+
+.health-btn-secondary {
+  background-color: var(--color-secondary);
+  @apply text-white;
+}
+
+.health-btn-secondary:hover {
+  background-color: var(--color-secondary-light);
+}
+
+.health-btn-outline {
+  @apply border border-gray-300 text-gray-700 bg-white;
+}
+
+.health-btn-outline:hover {
+  @apply bg-gray-50 border-gray-400;
+}
+
+.health-btn-success {
+  @apply bg-green-600 text-white;
+}
+
+.health-btn-success:hover {
+  @apply bg-green-700;
+}
+
+.health-btn-danger {
+  @apply bg-red-600 text-white;
+}
+
+.health-btn-danger:hover {
+  @apply bg-red-700;
+}
+
+.health-icon-bg {
+  @apply p-3 rounded-full flex items-center justify-center;
+}
+
+.health-icon-bg-primary {
+  @apply bg-teal-100 text-teal-600;
+}
+
+.health-icon-bg-secondary {
+  @apply bg-blue-100 text-blue-600;
+}
+
+.health-icon-bg-success {
+  @apply bg-green-100 text-green-600;
+}
+
+.health-icon-bg-warning {
+  @apply bg-yellow-100 text-yellow-600;
+}
+
+.health-icon-bg-danger {
+  @apply bg-red-100 text-red-600;
+}
+
+.health-icon-bg-info {
+  @apply bg-blue-100 text-blue-600;
+}
+
