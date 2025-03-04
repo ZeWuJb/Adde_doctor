@@ -20,6 +20,7 @@ import {
   HelpCircle,
   Video,
 } from "lucide-react"
+
 import { getDoctorIdFromUserId, fetchDoctorAppointments, updateAppointmentStatus } from "../services/appointmentService"
 import AvailabilityManager from "./AvailabilityManager"
 
@@ -175,16 +176,16 @@ const DoctorDashboard = () => {
 
       {/* Toggle Button */}
       <button
-        onClick={toggleSidebarMinimized}
-        className="md:flex hidden items-center justify-center w-10 h-10 bg-teal-500 hover:bg-teal-600 rounded-md transition-colors duration-300"
-        aria-label={sidebarMinimized ? "Expand sidebar" : "Collapse sidebar"}
-      >
-        {sidebarMinimized ? (
-          <ChevronRight size={18} className="text-white" />
-        ) : (
-          <ChevronLeft size={18} className="text-white" />
-        )}
-      </button>
+  onClick={toggleSidebarMinimized}
+  className="md:block hidden items-center justify-center w-2 h-9 bg-primary-600 rounded-md border-primary-600 transition-colors duration-300"
+  aria-label={sidebarMinimized ? "Expand sidebar" : "Collapse sidebar"}
+>
+  {sidebarMinimized ? (
+    <ChevronRight size={20} className="text-white" />
+  ) : (
+    <ChevronLeft size={20} className="text-white" />
+  )}
+</button>
     </div>
 
     {/* User Information */}
@@ -213,125 +214,129 @@ const DoctorDashboard = () => {
     </div>
 
     {/* Navigation */}
-    <nav className="flex-1 overflow-y-auto">
-      {/* Main Section */}
-      {!sidebarMinimized && (
-        <div className="mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider px-4">
-          Main
+    <nav
+  className={`flex-1 overflow-y-auto ${
+    sidebarMinimized ? "px-2" : "px-4"
+  }`}
+>
+  {/* Main Section */}
+  {!sidebarMinimized && (
+    <div className="mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider px-4">
+      Main
+    </div>
+  )}
+
+  <ul className="space-y-1.5">
+    {/* Dashboard */}
+    <li>
+      <button
+        onClick={() => setActiveTab("dashboard")}
+        className={`health-nav-item flex items-center w-full py-2 rounded-md transition-all ${
+          activeTab === "dashboard" ? "bg-gray-100 text-gray-800" : "bg-gray-100 text-gray-600"
+        }`}
+        title="Dashboard"
+      >
+        <Activity className="icon mr-2" size={20} />
+        {!sidebarMinimized && <span className="flex-1">Dashboard</span>}
+      </button>
+    </li>
+
+    {/* Availability */}
+    <li>
+      <button
+        onClick={() => setActiveTab("availability")}
+        className={`health-nav-item flex items-center w-full py-2 rounded-md transition-all ${
+          activeTab === "availability" ? "bg-gray-100 text-gray-800" : "bg-gray-100 text-gray-600"
+        }`}
+        title="Availability"
+      >
+        <Calendar className="icon mr-2" size={20} />
+        {!sidebarMinimized && <span className="flex-1">Availability</span>}
+      </button>
+    </li>
+
+    {/* Patients */}
+    <li>
+      <a
+        href="#"
+        className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
+        title="Patients"
+      >
+        <Users className="icon mr-2" size={20} />
+        {!sidebarMinimized && <span className="flex-1">Patients</span>}
+      </a>
+    </li>
+
+    {/* Appointments */}
+    <li>
+      <a
+        href="#"
+        className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
+        title="Appointments"
+      >
+        <Clock className="icon mr-2" size={20} />
+        {!sidebarMinimized && <span className="flex-1">Appointments</span>}
+      </a>
+    </li>
+
+    {/* Video Calls */}
+    <li>
+      <a
+        href="#"
+        className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
+        title="Video Calls"
+      >
+        <Video className="icon mr-2" size={20} />
+        {!sidebarMinimized && <span className="flex-1">Video Calls</span>}
+      </a>
+    </li>
+
+    {/* Other Section */}
+    {!sidebarMinimized && (
+      <>
+        <div className="mt-8 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider px-4">
+          Other
         </div>
-      )}
 
-      <ul className="space-y-1.5">
-        {/* Dashboard */}
-        <li>
-          <button
-            onClick={() => setActiveTab("dashboard")}
-            className={`health-nav-item flex items-center px-4 py-2 text-sm rounded-md transition-all ${
-              activeTab === "dashboard" ? "bg-gray-100 text-gray-800" : "hover:bg-gray-50 text-gray-600"
-            }`}
-            title="Dashboard"
-          >
-            <Activity className="icon mr-2" size={20} />
-            {!sidebarMinimized && <span>Dashboard</span>}
-          </button>
-        </li>
-
-        {/* Availability */}
-        <li>
-          <button
-            onClick={() => setActiveTab("availability")}
-            className={`health-nav-item flex items-center px-4 py-2 text-sm rounded-md transition-all ${
-              activeTab === "availability" ? "bg-gray-100 text-gray-800" : "hover:bg-gray-50 text-gray-600"
-            }`}
-            title="Availability"
-          >
-            <Calendar className="icon mr-2" size={20} />
-            {!sidebarMinimized && <span>Availability</span>}
-          </button>
-        </li>
-
-        {/* Patients */}
+        {/* Reports */}
         <li>
           <a
             href="#"
-            className={`health-nav-item flex items-center px-4 py-2 text-sm rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
-            title="Patients"
+            className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
+            title="Reports"
           >
-            <Users className="icon mr-2" size={20} />
-            {!sidebarMinimized && <span>Patients</span>}
+            <FileText className="icon mr-2" size={20} />
+            <span className="flex-1">Reports</span>
           </a>
         </li>
 
-        {/* Appointments */}
+        {/* Settings */}
         <li>
           <a
             href="#"
-            className={`health-nav-item flex items-center px-4 py-2 text-sm rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
-            title="Appointments"
+            className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
+            title="Settings"
           >
-            <Clock className="icon mr-2" size={20} />
-            {!sidebarMinimized && <span>Appointments</span>}
+            <Settings className="icon mr-2" size={20} />
+            <span className="flex-1">Settings</span>
           </a>
         </li>
 
-        {/* Video Calls */}
+        {/* Help */}
         <li>
           <a
             href="#"
-            className={`health-nav-item flex items-center px-4 py-2 text-sm rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
-            title="Video Calls"
+            className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
+            title="Help"
           >
-            <Video className="icon mr-2" size={20} />
-            {!sidebarMinimized && <span>Video Calls</span>}
+            <HelpCircle className="icon mr-2" size={20} />
+            <span className="flex-1">Help</span>
           </a>
         </li>
-
-        {/* Other Section */}
-        {!sidebarMinimized && (
-          <>
-            <div className="mt-8 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider px-4">
-              Other
-            </div>
-
-            {/* Reports */}
-            <li>
-              <a
-                href="#"
-                className={`health-nav-item flex items-center px-4 py-2 text-sm rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
-                title="Reports"
-              >
-                <FileText className="icon mr-2" size={20} />
-                <span>Reports</span>
-              </a>
-            </li>
-
-            {/* Settings */}
-            <li>
-              <a
-                href="#"
-                className={`health-nav-item flex items-center px-4 py-2 text-sm rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
-                title="Settings"
-              >
-                <Settings className="icon mr-2" size={20} />
-                <span>Settings</span>
-              </a>
-            </li>
-
-            {/* Help */}
-            <li>
-              <a
-                href="#"
-                className={`health-nav-item flex items-center px-4 py-2 text-sm rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
-                title="Help"
-              >
-                <HelpCircle className="icon mr-2" size={20} />
-                <span>Help</span>
-              </a>
-            </li>
-          </>
-        )}
-      </ul>
-    </nav>
+      </>
+    )}
+  </ul>
+</nav>
 
     {/* Sign Out Button */}
     <div className="p-4 border-t border-gray-100">
