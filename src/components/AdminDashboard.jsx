@@ -5,7 +5,8 @@ import { UserAuth } from "../context/AuthContext"
 import { Users, Calendar, Settings, Bell, LogOut, Menu, X, User, PieChart, Activity, Clipboard } from "lucide-react"
 
 const AdminDashboard = () => {
-  const { session, loading, signOut } = UserAuth()
+  // Update to use userData directly from context
+  const { session, userData, loading, signOut } = UserAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [doctors, setDoctors] = useState([])
   const [dashboardLoading, setDashboardLoading] = useState(true)
@@ -144,7 +145,10 @@ const AdminDashboard = () => {
                   <User size={32} className="text-gray-500" />
                 )}
               </div>
-              <h2 className="text-lg font-medium">{session?.userData?.full_name || "Administrator"}</h2>
+              {/* Update the user info display to use userData */}
+              <h2 className="text-lg font-medium">
+                {userData?.full_name || session?.userData?.full_name || "Administrator"}
+              </h2>
               <p className="text-sm text-gray-500">{session?.user?.email}</p>
             </div>
 

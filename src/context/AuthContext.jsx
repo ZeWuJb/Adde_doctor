@@ -120,6 +120,7 @@ export const AuthContextProvider = ({ children }) => {
       // Set role in session
       const sessionWithRole = { ...authData, role };
       setSession(sessionWithRole);
+      
 
       return { success: true, data: sessionWithRole };
     } catch (err) {

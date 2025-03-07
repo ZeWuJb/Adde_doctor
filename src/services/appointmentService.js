@@ -27,7 +27,7 @@ export const fetchDoctorAppointments = async (doctorId) => {
         mothers:mother_id (
           id, 
           full_name, 
-          profile_picture
+          profile_url
         )
       `)
       .eq("doctor_id", doctorId)

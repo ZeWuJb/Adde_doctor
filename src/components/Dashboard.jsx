@@ -23,39 +23,48 @@ import {
 
 import { getDoctorIdFromUserId, fetchDoctorAppointments, updateAppointmentStatus } from "../services/appointmentService"
 import AvailabilityManager from "./AvailabilityManager"
+import ProfilePage from "./ProfilePage"
 
-const DoctorDashboard = () => {
-  const { session, signOut } = UserAuth()
+// Add prop type validation for the Dashboard component
+import PropTypes from "prop-types"
+
+// Update the Dashboard component to accept activeTab prop for direct navigation
+const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
+  // Update to use userData directly from context
+  const { session, userData, signOut } = UserAuth()
   const [doctorId, setDoctorId] = useState(null)
   const [appointments, setAppointments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState("dashboard")
+  const [activeTab, setActiveTab] = useState(initialActiveTab || "dashboard")
   const [sidebarMinimized, setSidebarMinimized] = useState(false)
 
-  // First, get the doctor ID
+  // Use userData directly if available
   useEffect(() => {
-    const fetchDoctorId = async () => {
-      if (!session?.user?.id) return
-
-      try {
-        const result = await getDoctorIdFromUserId(session.user.id)
-        if (result.success) {
-          setDoctorId(result.doctorId)
-        } else {
-          setError("Failed to retrieve doctor information")
+    if (userData && userData.id) {
+      setDoctorId(userData.id)
+    } else if (session?.user?.id) {
+      // Fallback to fetching doctor ID if userData is not available
+      const fetchDoctorId = async () => {
+        try {
+          const result = await getDoctorIdFromUserId(session.user.id)
+          if (result.success) {
+            setDoctorId(result.doctorId)
+          } else {
+            setError("Failed to retrieve doctor information")
+            setLoading(false)
+          }
+        } catch (err) {
+          console.error("Error fetching doctor ID:", err)
+          setError("An unexpected error occurred")
           setLoading(false)
         }
-      } catch (err) {
-        console.error("Error fetching doctor ID:", err)
-        setError("An unexpected error occurred")
-        setLoading(false)
       }
-    }
 
-    fetchDoctorId()
-  }, [session])
+      fetchDoctorId()
+    }
+  }, [session, userData])
 
   // Then, fetch appointments once we have the doctor ID
   useEffect(() => {
@@ -95,8 +104,8 @@ const DoctorDashboard = () => {
           appointments.map((appointment) =>
             appointment.id === id
               ? { ...appointment, status: "accepted", video_conference_link: result.data.video_conference_link }
-              : appointment
-          )
+              : appointment,
+          ),
         )
       } else {
         setError("Failed to accept appointment. Please try again.")
@@ -114,8 +123,8 @@ const DoctorDashboard = () => {
       if (result.success) {
         setAppointments(
           appointments.map((appointment) =>
-            appointment.id === id ? { ...appointment, status: "declined" } : appointment
-          )
+            appointment.id === id ? { ...appointment, status: "declined" } : appointment,
+          ),
         )
       } else {
         setError("Failed to decline appointment. Please try again.")
@@ -162,197 +171,211 @@ const DoctorDashboard = () => {
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
       <div
-  className={`fixed inset-y-0 left-0 z-50 health-sidebar transition-all duration-300 ease-in-out ${
-    sidebarOpen ? "translate-x-0" : "-translate-x-full"
-  } md:translate-x-0 ${sidebarMinimized ? "md:w-20" : "w-60"}`}
->
-  <div className="flex flex-col h-full bg-white border-r border-gray-100">
-    {/* Header */}
-    <div className="flex items-center justify-between h-16 px-6 bg-primary-600 text-white">
-      <div className={`flex items-center ${sidebarMinimized ? "hidden" : "block"}`}>
-        <Heart className="mr-2" size={20} />
-        <span className="text-xl font-bold">CareSync</span>
-      </div>
-
-      {/* Toggle Button */}
-      <button
-  onClick={toggleSidebarMinimized}
-  className="md:block hidden items-center justify-center w-2 h-9 bg-primary-600 rounded-md border-primary-600 transition-colors duration-300"
-  aria-label={sidebarMinimized ? "Expand sidebar" : "Collapse sidebar"}
->
-  {sidebarMinimized ? (
-    <ChevronRight size={20} className="text-white" />
-  ) : (
-    <ChevronLeft size={20} className="text-white" />
-  )}
-</button>
-    </div>
-
-    {/* User Information */}
-    <div className="flex flex-col items-center py-6 border-b border-gray-100">
-      <div className={`relative w-16 h-16 mb-2 rounded-full bg-teal-50 flex items-center justify-center border-2 border-teal-100 ${sidebarMinimized ? "w-10 h-10" : ""}`}>
-        {session?.user?.user_metadata?.avatar_url ? (
-          <img
-            src={session.user.user_metadata.avatar_url || "/placeholder.svg"}
-            alt="Profile"
-            className={`w-full h-full rounded-full object-cover ${sidebarMinimized ? "rounded-sm" : ""}`}
-          />
-        ) : (
-          <User size={sidebarMinimized ? 18 : 28} className="text-teal-600" />
-        )}
-      </div>
-
-      {/* User Info Text - Only visible when expanded */}
-      {!sidebarMinimized && (
-        <>
-          <h2 className="text-lg font-medium text-gray-800 mt-2">
-            {session?.userData?.full_name || "Doctor"}
-          </h2>
-          <p className="text-sm text-gray-500">{session?.user?.email}</p>
-        </>
-      )}
-    </div>
-
-    {/* Navigation */}
-    <nav
-  className={`flex-1 overflow-y-auto ${
-    sidebarMinimized ? "px-2" : "px-4"
-  }`}
->
-  {/* Main Section */}
-  {!sidebarMinimized && (
-    <div className="mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider px-4">
-      Main
-    </div>
-  )}
-
-  <ul className="space-y-1.5">
-    {/* Dashboard */}
-    <li>
-      <button
-        onClick={() => setActiveTab("dashboard")}
-        className={`health-nav-item flex items-center w-full py-2 rounded-md transition-all ${
-          activeTab === "dashboard" ? "bg-gray-100 text-gray-800" : "bg-gray-100 text-gray-600"
-        }`}
-        title="Dashboard"
+        className={`fixed inset-y-0 left-0 z-50 health-sidebar transition-all duration-300 ease-in-out ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        } md:translate-x-0 ${sidebarMinimized ? "md:w-20" : "w-60"}`}
       >
-        <Activity className="icon mr-2" size={20} />
-        {!sidebarMinimized && <span className="flex-1">Dashboard</span>}
-      </button>
-    </li>
+        <div className="flex flex-col h-full bg-white border-r border-gray-100">
+          {/* Header */}
+          <div className="flex items-center justify-between h-16 px-6 bg-primary-600 text-white">
+            <div className={`flex items-center ${sidebarMinimized ? "hidden" : "block"}`}>
+              <Heart className="mr-2" size={20} />
+              <span className="text-xl font-bold">CareSync</span>
+            </div>
 
-    {/* Availability */}
-    <li>
-      <button
-        onClick={() => setActiveTab("availability")}
-        className={`health-nav-item flex items-center w-full py-2 rounded-md transition-all ${
-          activeTab === "availability" ? "bg-gray-100 text-gray-800" : "bg-gray-100 text-gray-600"
-        }`}
-        title="Availability"
-      >
-        <Calendar className="icon mr-2" size={20} />
-        {!sidebarMinimized && <span className="flex-1">Availability</span>}
-      </button>
-    </li>
+            {/* Toggle Button */}
+            <button
+              onClick={toggleSidebarMinimized}
+              className="md:block hidden items-center justify-center w-2 h-9 bg-primary-600 rounded-md border-primary-600 transition-colors duration-300"
+              aria-label={sidebarMinimized ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {sidebarMinimized ? (
+                <ChevronRight size={20} className="text-white" />
+              ) : (
+                <ChevronLeft size={20} className="text-white" />
+              )}
+            </button>
+          </div>
 
-    {/* Patients */}
-    <li>
-      <a
-        href="#"
-        className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
-        title="Patients"
-      >
-        <Users className="icon mr-2" size={20} />
-        {!sidebarMinimized && <span className="flex-1">Patients</span>}
-      </a>
-    </li>
+          {/* User Information */}
+          <div className="flex flex-col items-center py-6 border-b border-gray-100">
+            <div
+              className={`relative w-16 h-16 mb-2 rounded-full bg-teal-50 flex items-center justify-center border-2 border-teal-100 ${sidebarMinimized ? "w-10 h-10" : ""}`}
+            >
+              {session?.user?.user_metadata?.avatar_url ? (
+                <img
+                  src={session.user.user_metadata.avatar_url || "/placeholder.svg"}
+                  alt="Profile"
+                  className={`w-full h-full rounded-full object-cover ${sidebarMinimized ? "rounded-sm" : ""}`}
+                />
+              ) : (
+                <User size={sidebarMinimized ? 18 : 28} className="text-teal-600" />
+              )}
+            </div>
 
-    {/* Appointments */}
-    <li>
-      <a
-        href="#"
-        className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
-        title="Appointments"
-      >
-        <Clock className="icon mr-2" size={20} />
-        {!sidebarMinimized && <span className="flex-1">Appointments</span>}
-      </a>
-    </li>
+            {/* User Info Text - Only visible when expanded */}
+            {!sidebarMinimized && (
+              <>
+                {/* Update the user info display to use userData */}
+                <h2 className="text-lg font-medium text-gray-800 mt-2">
+                  {userData?.full_name || session?.userData?.full_name || "Doctor"}
+                </h2>
+                <p className="text-sm text-gray-500">{session?.user?.email}</p>
+              </>
+            )}
+          </div>
 
-    {/* Video Calls */}
-    <li>
-      <a
-        href="#"
-        className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
-        title="Video Calls"
-      >
-        <Video className="icon mr-2" size={20} />
-        {!sidebarMinimized && <span className="flex-1">Video Calls</span>}
-      </a>
-    </li>
+          {/* Navigation */}
+          <nav className={`flex-1 overflow-y-auto ${sidebarMinimized ? "px-2" : "px-4"}`}>
+            {/* Main Section */}
+            {!sidebarMinimized && (
+              <div className="mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider px-4">Main</div>
+            )}
 
-    {/* Other Section */}
-    {!sidebarMinimized && (
-      <>
-        <div className="mt-8 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider px-4">
-          Other
+            <ul className="space-y-1.5">
+              {/* Dashboard */}
+              <li>
+                <button
+                  onClick={() => setActiveTab("dashboard")}
+                  className={`health-nav-item flex items-center w-full py-2 rounded-md transition-all ${
+                    activeTab === "dashboard" ? "bg-gray-100 text-gray-800" : "bg-gray-100 text-gray-600"
+                  }`}
+                  title="Dashboard"
+                >
+                  <Activity className="icon mr-2" size={20} />
+                  {!sidebarMinimized && <span className="flex-1">Dashboard</span>}
+                </button>
+              </li>
+
+              {/* Add Profile to the navigation list after Dashboard */}
+              <li>
+                <button
+                  onClick={() => setActiveTab("profile")}
+                  className={`health-nav-item flex items-center w-full py-2 rounded-md transition-all ${
+                    activeTab === "profile" ? "bg-gray-100 text-gray-800" : "bg-gray-100 text-gray-600"
+                  }`}
+                  title="Profile"
+                >
+                  <User className="icon mr-2" size={20} />
+                  {!sidebarMinimized && <span className="flex-1">Profile</span>}
+                </button>
+              </li>
+
+              {/* Availability */}
+              <li>
+                <button
+                  onClick={() => setActiveTab("availability")}
+                  className={`health-nav-item flex items-center w-full py-2 rounded-md transition-all ${
+                    activeTab === "availability" ? "bg-gray-100 text-gray-800" : "bg-gray-100 text-gray-600"
+                  }`}
+                  title="Availability"
+                >
+                  <Calendar className="icon mr-2" size={20} />
+                  {!sidebarMinimized && <span className="flex-1">Availability</span>}
+                </button>
+              </li>
+
+              {/* Patients */}
+              <li>
+                <a
+                  href="#"
+                  className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
+                  title="Patients"
+                >
+                  <Users className="icon mr-2" size={20} />
+                  {!sidebarMinimized && <span className="flex-1">Patients</span>}
+                </a>
+              </li>
+
+              {/* Appointments */}
+              <li>
+                <a
+                  href="#"
+                  className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
+                  title="Appointments"
+                >
+                  <Clock className="icon mr-2" size={20} />
+                  {!sidebarMinimized && <span className="flex-1">Appointments</span>}
+                </a>
+              </li>
+
+              {/* Video Calls */}
+              <li>
+                <a
+                  href="#"
+                  className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
+                  title="Video Calls"
+                >
+                  <Video className="icon mr-2" size={20} />
+                  {!sidebarMinimized && <span className="flex-1">Video Calls</span>}
+                </a>
+              </li>
+
+              {/* Other Section */}
+              {!sidebarMinimized && (
+                <>
+                  <div className="mt-8 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider px-4">
+                    Other
+                  </div>
+
+                  {/* Reports */}
+                  <li>
+                    <a
+                      href="#"
+                      className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
+                      title="Reports"
+                    >
+                      <FileText className="icon mr-2" size={20} />
+                      <span className="flex-1">Reports</span>
+                    </a>
+                  </li>
+
+                  {/* Settings */}
+                  <li>
+                    <a
+                      href="#"
+                      className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
+                      title="Settings"
+                    >
+                      <Settings className="icon mr-2" size={20} />
+                      <span className="flex-1">Settings</span>
+                    </a>
+                  </li>
+
+                  {/* Help */}
+                  <li>
+                    <a
+                      href="#"
+                      className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
+                      title="Help"
+                    >
+                      <HelpCircle className="icon mr-2" size={20} />
+                      <span className="flex-1">Help</span>
+                    </a>
+                  </li>
+                </>
+              )}
+            </ul>
+          </nav>
+
+          {/* Sign Out Button */}
+          <div className="p-4 border-t border-gray-100">
+            <button
+              onClick={handleSignOut}
+              className={`flex items-center justify-center w-full px-4 py-2 text-sm rounded-lg transition-all ${
+                sidebarMinimized ? "bg-red-500 hover:bg-red-600 text-white p-2" : "hover:bg-red-50 text-red-700"
+              }`}
+              title="Sign Out"
+            >
+              <LogOut
+                className={`${sidebarMinimized ? "" : "mr-2"} ${sidebarMinimized ? "text-white" : ""}`}
+                size={20}
+              />
+              {!sidebarMinimized && <span>Sign Out</span>}
+            </button>
+          </div>
         </div>
-
-        {/* Reports */}
-        <li>
-          <a
-            href="#"
-            className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
-            title="Reports"
-          >
-            <FileText className="icon mr-2" size={20} />
-            <span className="flex-1">Reports</span>
-          </a>
-        </li>
-
-        {/* Settings */}
-        <li>
-          <a
-            href="#"
-            className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
-            title="Settings"
-          >
-            <Settings className="icon mr-2" size={20} />
-            <span className="flex-1">Settings</span>
-          </a>
-        </li>
-
-        {/* Help */}
-        <li>
-          <a
-            href="#"
-            className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
-            title="Help"
-          >
-            <HelpCircle className="icon mr-2" size={20} />
-            <span className="flex-1">Help</span>
-          </a>
-        </li>
-      </>
-    )}
-  </ul>
-</nav>
-
-    {/* Sign Out Button */}
-    <div className="p-4 border-t border-gray-100">
-      <button
-        onClick={handleSignOut}
-        className={`flex items-center justify-center w-full px-4 py-2 text-sm rounded-lg transition-all ${
-          sidebarMinimized ? "bg-red-500 hover:bg-red-600 text-white p-2" : "hover:bg-red-50 text-red-700"
-        }`}
-        title="Sign Out"
-      >
-        <LogOut className={`${sidebarMinimized ? "" : "mr-2"} ${sidebarMinimized ? "text-white" : ""}`} size={20} />
-        {!sidebarMinimized && <span>Sign Out</span>}
-      </button>
-    </div>
-  </div>
-</div>
+      </div>
 
       {/* Main Content */}
       <div className={`flex-1 w-full transition-all duration-300 ${sidebarMinimized ? "md:ml-20" : "md:ml-64"}`}>
@@ -374,7 +397,9 @@ const DoctorDashboard = () => {
                     ? "Dashboard"
                     : activeTab === "availability"
                       ? "Availability Management"
-                      : ""}
+                      : activeTab === "profile"
+                        ? "Profile"
+                        : ""}
                 </h2>
                 <p className="text-sm text-gray-500">
                   {new Date().toLocaleDateString("en-US", {
@@ -703,6 +728,8 @@ const DoctorDashboard = () => {
             </>
           ) : activeTab === "availability" ? (
             <AvailabilityManager />
+          ) : activeTab === "profile" ? (
+            <ProfilePage />
           ) : null}
         </main>
       </div>
@@ -710,5 +737,8 @@ const DoctorDashboard = () => {
   )
 }
 
+DoctorDashboard.propTypes = {
+  activeTab: PropTypes.string,
+}
 export default DoctorDashboard
 
