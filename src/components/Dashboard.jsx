@@ -19,21 +19,32 @@ import {
   FileText,
   HelpCircle,
   Video,
+  BarChart,
 } from "lucide-react"
 
 import { getDoctorIdFromUserId, fetchDoctorAppointments, updateAppointmentStatus } from "../services/appointmentService"
+import { fetchDoctorStatistics, fetchRecentActivity } from "../services/dashboardService"
 import AvailabilityManager from "./AvailabilityManager"
 import ProfilePage from "./ProfilePage"
+import AppointmentsPage from "./AppointmentsPage"
+import StatisticsPage from "./StatisticsPage"
 
 // Add prop type validation for the Dashboard component
 import PropTypes from "prop-types"
 
+// Add this import at the top of the file:
+import { useSocketNotifications } from "../services/serverio"
+
 // Update the Dashboard component to accept activeTab prop for direct navigation
 const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
+  // Add this near the beginning of the component function:
+  const { notifications, unreadCount: unreadNotifications } = useSocketNotifications()
   // Update to use userData directly from context
   const { session, userData, signOut } = UserAuth()
   const [doctorId, setDoctorId] = useState(null)
   const [appointments, setAppointments] = useState([])
+  const [statistics, setStatistics] = useState(null)
+  const [recentActivity, setRecentActivity] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -66,29 +77,42 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
     }
   }, [session, userData])
 
-  // Then, fetch appointments once we have the doctor ID
+  // Then, fetch data once we have the doctor ID
   useEffect(() => {
-    const fetchAppointments = async () => {
+    const fetchData = async () => {
       if (!doctorId) return
 
       try {
         setLoading(true)
-        const result = await fetchDoctorAppointments(doctorId)
 
-        if (result.success) {
-          setAppointments(result.data)
+        // Fetch appointments
+        const appointmentsResult = await fetchDoctorAppointments(doctorId)
+        if (appointmentsResult.success) {
+          setAppointments(appointmentsResult.data)
         } else {
           setError("Failed to fetch appointments. Please try again later.")
         }
+
+        // Fetch statistics
+        const statsResult = await fetchDoctorStatistics(doctorId)
+        if (statsResult.success) {
+          setStatistics(statsResult.data)
+        }
+
+        // Fetch recent activity
+        const activityResult = await fetchRecentActivity(doctorId, 3)
+        if (activityResult.success) {
+          setRecentActivity(activityResult.data)
+        }
       } catch (err) {
-        console.error("Error fetching appointments:", err.message)
+        console.error("Error fetching data:", err.message)
         setError("An unexpected error occurred. Please try again later.")
       } finally {
         setLoading(false)
       }
     }
 
-    fetchAppointments()
+    fetchData()
   }, [doctorId])
 
   const handleSignOut = async () => {
@@ -107,6 +131,12 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
               : appointment,
           ),
         )
+
+        // Refresh statistics after accepting
+        const statsResult = await fetchDoctorStatistics(doctorId)
+        if (statsResult.success) {
+          setStatistics(statsResult.data)
+        }
       } else {
         setError("Failed to accept appointment. Please try again.")
       }
@@ -126,6 +156,12 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
             appointment.id === id ? { ...appointment, status: "declined" } : appointment,
           ),
         )
+
+        // Refresh statistics after declining
+        const statsResult = await fetchDoctorStatistics(doctorId)
+        if (statsResult.success) {
+          setStatistics(statsResult.data)
+        }
       } else {
         setError("Failed to decline appointment. Please try again.")
       }
@@ -142,26 +178,6 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
       setError("Video conference link is not available.")
     }
   }
-
-  // Count pending appointments
-  const pendingAppointments = appointments.filter((a) => a.status === "pending").length
-
-  // Get today's appointments
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const tomorrow = new Date(today)
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const todaysAppointments = appointments.filter((a) => {
-    const appointmentDate = new Date(a.requested_time)
-    return appointmentDate >= today && appointmentDate < tomorrow
-  }).length
-
-  // Get the next upcoming appointment
-  const upcomingAppointments = appointments
-    .filter((a) => a.status === "accepted" && new Date(a.requested_time) > new Date())
-    .sort((a, b) => new Date(a.requested_time) - new Date(b.requested_time))
-
-  const nextAppointment = upcomingAppointments.length > 0 ? upcomingAppointments[0] : null
 
   const toggleSidebarMinimized = () => {
     setSidebarMinimized(!sidebarMinimized)
@@ -247,7 +263,7 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
                 </button>
               </li>
 
-              {/* Add Profile to the navigation list after Dashboard */}
+              {/* Profile */}
               <li>
                 <button
                   onClick={() => setActiveTab("profile")}
@@ -258,6 +274,20 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
                 >
                   <User className="icon mr-2" size={20} />
                   {!sidebarMinimized && <span className="flex-1">Profile</span>}
+                </button>
+              </li>
+
+              {/* Appointments */}
+              <li>
+                <button
+                  onClick={() => setActiveTab("appointments")}
+                  className={`health-nav-item flex items-center w-full py-2 rounded-md transition-all ${
+                    activeTab === "appointments" ? "bg-gray-100 text-gray-800" : "bg-gray-100 text-gray-600"
+                  }`}
+                  title="Appointments"
+                >
+                  <Clock className="icon mr-2" size={20} />
+                  {!sidebarMinimized && <span className="flex-1">Appointments</span>}
                 </button>
               </li>
 
@@ -275,6 +305,20 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
                 </button>
               </li>
 
+              {/* Statistics */}
+              <li>
+                <button
+                  onClick={() => setActiveTab("statistics")}
+                  className={`health-nav-item flex items-center w-full py-2 rounded-md transition-all ${
+                    activeTab === "statistics" ? "bg-gray-100 text-gray-800" : "bg-gray-100 text-gray-600"
+                  }`}
+                  title="Statistics"
+                >
+                  <BarChart className="icon mr-2" size={20} />
+                  {!sidebarMinimized && <span className="flex-1">Statistics</span>}
+                </button>
+              </li>
+
               {/* Patients */}
               <li>
                 <a
@@ -284,30 +328,6 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
                 >
                   <Users className="icon mr-2" size={20} />
                   {!sidebarMinimized && <span className="flex-1">Patients</span>}
-                </a>
-              </li>
-
-              {/* Appointments */}
-              <li>
-                <a
-                  href="#"
-                  className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
-                  title="Appointments"
-                >
-                  <Clock className="icon mr-2" size={20} />
-                  {!sidebarMinimized && <span className="flex-1">Appointments</span>}
-                </a>
-              </li>
-
-              {/* Video Calls */}
-              <li>
-                <a
-                  href="#"
-                  className={`health-nav-item flex items-center w-full py-2 rounded-md hover:bg-gray-50 text-gray-600 transition-colors`}
-                  title="Video Calls"
-                >
-                  <Video className="icon mr-2" size={20} />
-                  {!sidebarMinimized && <span className="flex-1">Video Calls</span>}
                 </a>
               </li>
 
@@ -399,7 +419,11 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
                       ? "Availability Management"
                       : activeTab === "profile"
                         ? "Profile"
-                        : ""}
+                        : activeTab === "appointments"
+                          ? "Appointments"
+                          : activeTab === "statistics"
+                            ? "Statistics & Analytics"
+                            : ""}
                 </h2>
                 <p className="text-sm text-gray-500">
                   {new Date().toLocaleDateString("en-US", {
@@ -418,13 +442,15 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
                 aria-label="Notifications"
               >
                 <Bell className="w-6 h-6" />
-                {pendingAppointments > 0 && (
-                  <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
+                {unreadNotifications > 0 && (
+                  <span className="absolute top-0 right-0 flex items-center justify-center w-4 h-4 text-xs text-white bg-red-500 rounded-full">
+                    {unreadNotifications}
+                  </span>
                 )}
               </button>
 
               <div className="relative">
-                <button className="flex items-center focus:outline-none">
+                <button onClick={() => setActiveTab("profile")} className="flex items-center focus:outline-none">
                   <div className="w-9 h-9 rounded-full bg-teal-50 flex items-center justify-center border border-teal-100">
                     {session?.user?.user_metadata?.avatar_url ? (
                       <img
@@ -443,7 +469,7 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
         </header>
 
         {/* Dashboard Content */}
-        <main className="p-6">
+        <main className="p-6 overflow-auto" style={{ maxHeight: "calc(100vh - 64px)" }}>
           {error && (
             <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
               <p className="font-medium">Error</p>
@@ -455,7 +481,7 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
             <>
               <div className="mb-8">
                 <h1 className="text-2xl font-bold text-gray-800">
-                  Welcome, {session?.userData?.full_name || "Doctor"}!
+                  Welcome, {userData?.full_name || session?.userData?.full_name || "Doctor"}!
                 </h1>
                 <p className="text-gray-600">Here`s your practice overview for today</p>
               </div>
@@ -469,20 +495,25 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
                     </div>
                     <div className="ml-4">
                       <h2 className="text-sm font-medium text-gray-500">Today`s Appointments</h2>
-                      <p className="text-2xl font-semibold text-gray-800">{todaysAppointments}</p>
+                      <p className="text-2xl font-semibold text-gray-800">{statistics?.todaysAppointments || 0}</p>
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t border-gray-100">
                     <p className="text-xs text-gray-500">
                       <span className="text-teal-600 font-medium">
-                        {Math.round((todaysAppointments / (appointments.length || 1)) * 100)}%
+                        {statistics
+                          ? Math.round((statistics.todaysAppointments / (statistics.totalAppointments || 1)) * 100)
+                          : 0}
+                        %
                       </span>{" "}
                       of your total appointments
                     </p>
                     <div className="w-full h-1.5 bg-gray-100 rounded-full mt-1.5">
                       <div
                         className="h-1.5 bg-teal-500 rounded-full"
-                        style={{ width: `${Math.round((todaysAppointments / (appointments.length || 1)) * 100)}%` }}
+                        style={{
+                          width: `${statistics ? Math.round((statistics.todaysAppointments / (statistics.totalAppointments || 1)) * 100) : 0}%`,
+                        }}
                       ></div>
                     </div>
                   </div>
@@ -495,9 +526,7 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
                     </div>
                     <div className="ml-4">
                       <h2 className="text-sm font-medium text-gray-500">Total Patients</h2>
-                      <p className="text-2xl font-semibold text-gray-800">
-                        {new Set(appointments.map((a) => a.mothers.id)).size}
-                      </p>
+                      <p className="text-2xl font-semibold text-gray-800">{statistics?.uniquePatients || 0}</p>
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t border-gray-100">
@@ -517,18 +546,18 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
                     </div>
                     <div className="ml-4">
                       <h2 className="text-sm font-medium text-gray-500">Pending Requests</h2>
-                      <p className="text-2xl font-semibold text-gray-800">{pendingAppointments}</p>
+                      <p className="text-2xl font-semibold text-gray-800">{statistics?.pendingAppointments || 0}</p>
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t border-gray-100">
                     <p className="text-xs text-gray-500">
-                      <span className="text-yellow-600 font-medium">{pendingAppointments}</span> requests need your
-                      attention
+                      <span className="text-yellow-600 font-medium">{statistics?.pendingAppointments || 0}</span>{" "}
+                      requests need your attention
                     </p>
                     <div className="w-full h-1.5 bg-gray-100 rounded-full mt-1.5">
                       <div
                         className="h-1.5 bg-yellow-500 rounded-full"
-                        style={{ width: `${Math.min(100, pendingAppointments * 10)}%` }}
+                        style={{ width: `${Math.min(100, (statistics?.pendingAppointments || 0) * 10)}%` }}
                       ></div>
                     </div>
                   </div>
@@ -540,13 +569,8 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
                       <Activity className="w-5 h-5" />
                     </div>
                     <div className="ml-4">
-                      <h2 className="text-sm font-medium text-gray-500">Completed Sessions</h2>
-                      <p className="text-2xl font-semibold text-gray-800">
-                        {
-                          appointments.filter((a) => a.status === "accepted" && new Date(a.requested_time) < new Date())
-                            .length
-                        }
-                      </p>
+                      <h2 className="text-sm font-medium text-gray-500">Consultations Given</h2>
+                      <p className="text-2xl font-semibold text-gray-800">{statistics?.consultationsGiven || 0}</p>
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t border-gray-100">
@@ -561,7 +585,7 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
               </div>
 
               {/* Next Appointment Card */}
-              {nextAppointment && (
+              {statistics?.nextAppointment && (
                 <div className="mb-8 health-card p-6">
                   <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
                     <Video className="mr-2 text-teal-600" size={20} />
@@ -569,18 +593,22 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
                   </h2>
                   <div className="flex items-center">
                     <img
-                      src={nextAppointment.mothers.profile_picture || "/placeholder.svg?height=64&width=64"}
-                      alt={nextAppointment.mothers.full_name}
+                      src={statistics.nextAppointment.mothers.profile_url || "/placeholder.svg?height=64&width=64"}
+                      alt={statistics.nextAppointment.mothers.full_name}
                       className="w-16 h-16 rounded-full mr-4 border-2 border-teal-100"
                     />
                     <div className="flex-1">
-                      <h3 className="text-lg font-medium text-gray-900">{nextAppointment.mothers.full_name}</h3>
+                      <h3 className="text-lg font-medium text-gray-900">
+                        {statistics.nextAppointment.mothers.full_name}
+                      </h3>
                       <div className="flex items-center text-gray-600 mt-1">
                         <Calendar className="w-4 h-4 mr-1 text-teal-600" />
-                        <span className="text-sm">{new Date(nextAppointment.requested_time).toLocaleDateString()}</span>
+                        <span className="text-sm">
+                          {new Date(statistics.nextAppointment.requested_time).toLocaleDateString()}
+                        </span>
                         <Clock className="w-4 h-4 ml-3 mr-1 text-teal-600" />
                         <span className="text-sm">
-                          {new Date(nextAppointment.requested_time).toLocaleTimeString([], {
+                          {new Date(statistics.nextAppointment.requested_time).toLocaleTimeString([], {
                             hour: "2-digit",
                             minute: "2-digit",
                           })}
@@ -590,15 +618,17 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
                         <span className="text-sm text-gray-600 mr-2">Payment:</span>
                         <span
                           className={`health-badge ${
-                            nextAppointment.payment_status === "paid" ? "health-badge-success" : "health-badge-warning"
+                            statistics.nextAppointment.payment_status === "paid"
+                              ? "health-badge-success"
+                              : "health-badge-warning"
                           }`}
                         >
-                          {nextAppointment.payment_status}
+                          {statistics.nextAppointment.payment_status}
                         </span>
                       </div>
                     </div>
                     <button
-                      onClick={() => joinMeeting(nextAppointment.video_conference_link)}
+                      onClick={() => joinMeeting(statistics.nextAppointment.video_conference_link)}
                       className="health-btn health-btn-primary flex items-center"
                     >
                       <Video className="mr-2" size={16} />
@@ -608,12 +638,98 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
                 </div>
               )}
 
+              {/* Recent Activity */}
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+                    <Activity className="mr-2 text-teal-600" size={20} />
+                    Recent Activity
+                  </h2>
+                  <button
+                    onClick={() => setActiveTab("statistics")}
+                    className="text-sm text-primary-600 hover:text-primary-700"
+                  >
+                    View All
+                  </button>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  {loading ? (
+                    <div className="flex justify-center items-center h-32">
+                      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-teal-500"></div>
+                    </div>
+                  ) : recentActivity.length > 0 ? (
+                    <div className="divide-y divide-gray-100">
+                      {recentActivity.map((activity) => (
+                        <div key={activity.id} className="p-4 hover:bg-gray-50">
+                          <div className="flex items-start">
+                            <div className="h-10 w-10 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
+                              <img
+                                src={activity.mothers.profile_url || "/placeholder.svg?height=40&width=40"}
+                                alt={activity.mothers.full_name}
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                            <div className="ml-4 flex-1">
+                              <div className="flex justify-between">
+                                <p className="font-medium text-gray-900">{activity.mothers.full_name}</p>
+                                <p className="text-sm text-gray-500">
+                                  {new Date(activity.updated_at).toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </p>
+                              </div>
+                              <p className="text-sm text-gray-600 mt-1">
+                                {activity.status === "accepted"
+                                  ? "Appointment accepted"
+                                  : activity.status === "declined"
+                                    ? "Appointment declined"
+                                    : "Requested an appointment"}
+                              </p>
+                              <div className="mt-2 flex items-center">
+                                <span
+                                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                    activity.status === "accepted"
+                                      ? "bg-green-100 text-green-800"
+                                      : activity.status === "declined"
+                                        ? "bg-red-100 text-red-800"
+                                        : "bg-yellow-100 text-yellow-800"
+                                  }`}
+                                >
+                                  {activity.status.charAt(0).toUpperCase() + activity.status.slice(1)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <Activity className="w-16 h-16 text-gray-300 mb-4" />
+                      <p className="text-gray-500 text-lg">No recent activity</p>
+                      <p className="text-gray-400 text-sm">Your recent activities will appear here</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Upcoming Appointments */}
               <div className="mb-8">
-                <h2 className="mb-4 text-xl font-semibold text-gray-800 flex items-center">
-                  <Calendar className="mr-2 text-teal-600" size={20} />
-                  Upcoming Appointments
-                </h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+                    <Calendar className="mr-2 text-teal-600" size={20} />
+                    Upcoming Appointments
+                  </h2>
+                  <button
+                    onClick={() => setActiveTab("appointments")}
+                    className="text-sm text-primary-600 hover:text-primary-700"
+                  >
+                    View All
+                  </button>
+                </div>
+
                 <div className="overflow-x-auto bg-white rounded-xl shadow-sm">
                   {loading ? (
                     <div className="flex justify-center items-center h-32">
@@ -631,89 +747,93 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
                         </tr>
                       </thead>
                       <tbody>
-                        {appointments.map((appointment) => (
-                          <tr key={appointment.id}>
-                            <td>
-                              <div className="flex items-center">
-                                <div className="flex-shrink-0 h-10 w-10">
-                                  <img
-                                    className="h-10 w-10 rounded-full border border-gray-200"
-                                    src={appointment.mothers.profile_picture || "/placeholder.svg?height=40&width=40"}
-                                    alt=""
-                                  />
-                                </div>
-                                <div className="ml-3">
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {appointment.mothers.full_name}
+                        {appointments
+                          .filter((a) => new Date(a.requested_time) > new Date())
+                          .sort((a, b) => new Date(a.requested_time) - new Date(b.requested_time))
+                          .slice(0, 5)
+                          .map((appointment) => (
+                            <tr key={appointment.id}>
+                              <td>
+                                <div className="flex items-center">
+                                  <div className="flex-shrink-0 h-10 w-10">
+                                    <img
+                                      className="h-10 w-10 rounded-full border border-gray-200"
+                                      src={appointment.mothers.profile_url || "/placeholder.svg?height=40&width=40"}
+                                      alt=""
+                                    />
+                                  </div>
+                                  <div className="ml-3">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {appointment.mothers.full_name}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            </td>
-                            <td>
-                              <div className="text-sm text-gray-900 font-medium">
-                                {new Date(appointment.requested_time).toLocaleDateString()}
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                {new Date(appointment.requested_time).toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </div>
-                            </td>
-                            <td>
-                              <span
-                                className={`health-badge ${
-                                  appointment.payment_status === "paid"
-                                    ? "health-badge-success"
-                                    : "health-badge-warning"
-                                }`}
-                              >
-                                {appointment.payment_status}
-                              </span>
-                            </td>
-                            <td>
-                              <span
-                                className={`health-badge ${
-                                  appointment.status === "accepted"
-                                    ? "health-badge-success"
-                                    : appointment.status === "declined"
-                                      ? "health-badge-danger"
-                                      : "health-badge-warning"
-                                }`}
-                              >
-                                {appointment.status}
-                              </span>
-                            </td>
-                            <td>
-                              {appointment.status === "pending" ? (
-                                <div className="flex space-x-2">
-                                  <button
-                                    onClick={() => handleAccept(appointment.id)}
-                                    className="health-btn health-btn-success py-1 px-3 text-xs"
-                                  >
-                                    Accept
-                                  </button>
-                                  <button
-                                    onClick={() => handleReject(appointment.id)}
-                                    className="health-btn health-btn-danger py-1 px-3 text-xs"
-                                  >
-                                    Decline
-                                  </button>
+                              </td>
+                              <td>
+                                <div className="text-sm text-gray-900 font-medium">
+                                  {new Date(appointment.requested_time).toLocaleDateString()}
                                 </div>
-                              ) : appointment.status === "accepted" ? (
-                                <button
-                                  onClick={() => joinMeeting(appointment.video_conference_link)}
-                                  className="health-btn health-btn-secondary py-1 px-3 text-xs flex items-center"
+                                <div className="text-sm text-gray-500">
+                                  {new Date(appointment.requested_time).toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </div>
+                              </td>
+                              <td>
+                                <span
+                                  className={`health-badge ${
+                                    appointment.payment_status === "paid"
+                                      ? "health-badge-success"
+                                      : "health-badge-warning"
+                                  }`}
                                 >
-                                  <Video className="mr-1" size={12} />
-                                  Join Call
-                                </button>
-                              ) : (
-                                <span className="text-gray-500 text-xs">Declined</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                                  {appointment.payment_status}
+                                </span>
+                              </td>
+                              <td>
+                                <span
+                                  className={`health-badge ${
+                                    appointment.status === "accepted"
+                                      ? "health-badge-success"
+                                      : appointment.status === "declined"
+                                        ? "health-badge-danger"
+                                        : "health-badge-warning"
+                                  }`}
+                                >
+                                  {appointment.status}
+                                </span>
+                              </td>
+                              <td>
+                                {appointment.status === "pending" ? (
+                                  <div className="flex space-x-2">
+                                    <button
+                                      onClick={() => handleAccept(appointment.id)}
+                                      className="health-btn health-btn-success py-1 px-3 text-xs"
+                                    >
+                                      Accept
+                                    </button>
+                                    <button
+                                      onClick={() => handleReject(appointment.id)}
+                                      className="health-btn health-btn-danger py-1 px-3 text-xs"
+                                    >
+                                      Decline
+                                    </button>
+                                  </div>
+                                ) : appointment.status === "accepted" ? (
+                                  <button
+                                    onClick={() => joinMeeting(appointment.video_conference_link)}
+                                    className="health-btn health-btn-secondary py-1 px-3 text-xs flex items-center"
+                                  >
+                                    <Video className="mr-1" size={12} />
+                                    Join Call
+                                  </button>
+                                ) : (
+                                  <span className="text-gray-500 text-xs">Declined</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
                       </tbody>
                     </table>
                   ) : (
@@ -730,6 +850,10 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
             <AvailabilityManager />
           ) : activeTab === "profile" ? (
             <ProfilePage />
+          ) : activeTab === "appointments" ? (
+            <AppointmentsPage />
+          ) : activeTab === "statistics" ? (
+            <StatisticsPage />
           ) : null}
         </main>
       </div>
@@ -740,5 +864,6 @@ const DoctorDashboard = ({ activeTab: initialActiveTab }) => {
 DoctorDashboard.propTypes = {
   activeTab: PropTypes.string,
 }
+
 export default DoctorDashboard
 
