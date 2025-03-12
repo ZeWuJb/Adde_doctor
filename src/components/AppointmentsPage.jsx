@@ -9,7 +9,7 @@ import {
   updatePaymentStatus,
 } from "../services/appointmentService"
 import { Calendar, Search, Filter, ChevronDown, Video, Check, X, AlertCircle } from "lucide-react"
-import { useSocketNotifications } from "../services/serverio"
+import { useSocketNotifications } from "../services/serverio.jsx"
 
 const AppointmentsPage = () => {
   const { session } = UserAuth()
@@ -23,7 +23,7 @@ const AppointmentsPage = () => {
   const [dateFilter, setDateFilter] = useState("all")
   const [showFilters, setShowFilters] = useState(false)
 
-  const { pendingAppointments, connected } = useSocketNotifications()
+  const { pendingAppointments } = useSocketNotifications()
 
   // First, get the doctor ID
   useEffect(() => {
@@ -74,32 +74,32 @@ const AppointmentsPage = () => {
     loadAppointments()
   }, [doctorId])
 
+  // Update appointments when new pending appointments are received
   useEffect(() => {
     if (pendingAppointments.length > 0) {
-      // Merge pending appointments from socket with existing appointments
-      const updatedAppointments = [...appointments]
+      setAppointments((prevAppointments) => {
+        const updatedAppointments = [...prevAppointments]
 
-      pendingAppointments.forEach((pendingAppt) => {
-        // Check if this appointment is already in our list
-        const existingIndex = updatedAppointments.findIndex((appt) => appt.id === pendingAppt.appointmentId)
+        pendingAppointments.forEach((pendingAppt) => {
+          const existingIndex = updatedAppointments.findIndex((appt) => appt.id === pendingAppt.appointmentId)
 
-        if (existingIndex === -1) {
-          // Add new appointment to the list
-          updatedAppointments.push({
-            id: pendingAppt.appointmentId,
-            requested_time: pendingAppt.requested_time,
-            status: "pending",
-            payment_status: "unpaid",
-            mothers: {
-              id: pendingAppt.mother_id,
-              full_name: pendingAppt.mother_name || "New Patient",
-              profile_url: pendingAppt.profile_url || null,
-            },
-          })
-        }
+          if (existingIndex === -1) {
+            updatedAppointments.push({
+              id: pendingAppt.appointmentId,
+              requested_time: pendingAppt.requested_time,
+              status: "pending",
+              payment_status: "unpaid",
+              mothers: {
+                id: pendingAppt.mother_id,
+                full_name: pendingAppt.mother_name || "New Patient",
+                profile_url: pendingAppt.profile_url || null,
+              },
+            })
+          }
+        })
+
+        return updatedAppointments
       })
-
-      setAppointments(updatedAppointments)
     }
   }, [pendingAppointments])
 
@@ -243,13 +243,10 @@ const AppointmentsPage = () => {
 
   return (
     <div className="container mx-auto py-6 px-4">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">Appointments</h1>
-        <p className="text-gray-600">Manage your patient appointments</p>
-      </div>
+      <h1 className="text-2xl font-bold mb-4">Appointments</h1>
 
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
+        <div className="mb-4 p-4 bg-red-100 border-l-4 border-red-500 text-red-700">
           <div className="flex items-center">
             <AlertCircle className="h-5 w-5 mr-2" />
             <span>{error}</span>
@@ -257,241 +254,149 @@ const AppointmentsPage = () => {
         </div>
       )}
 
-      {/* Search and Filters */}
-      <div className="mb-6 bg-white rounded-lg shadow-sm p-4">
-        <div className="flex flex-col md:flex-row md:items-center gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search patients..."
-              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              <Filter className="h-5 w-5" />
-              <span>Filters</span>
-              <ChevronDown className={`h-4 w-4 transition-transform ${showFilters ? "rotate-180" : ""}`} />
-            </button>
-
-            <button
-              onClick={() => {
-                setSearchTerm("")
-                setStatusFilter("all")
-                setDateFilter("all")
-              }}
-              className="px-4 py-2 text-gray-600 hover:text-gray-900"
-            >
-              Clear
-            </button>
-          </div>
+      <div className="mb-4 flex items-center justify-between">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search patients..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className="flex items-center px-4 py-2 bg-gray-100 rounded-md hover:bg-gray-200"
+        >
+          <Filter className="mr-2" />
+          Filters
+          <ChevronDown className={`ml-2 transform ${showFilters ? "rotate-180" : ""} transition-transform`} />
+        </button>
+      </div>
 
-        {showFilters && (
-          <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-3 gap-4">
+      {showFilters && (
+        <div className="mb-4 p-4 bg-gray-50 rounded-md">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full p-2 border rounded-md"
               >
-                <option value="all">All Statuses</option>
+                <option value="all">All</option>
                 <option value="pending">Pending</option>
                 <option value="accepted">Accepted</option>
                 <option value="declined">Declined</option>
               </select>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
               <select
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full p-2 border rounded-md"
               >
-                <option value="all">All Dates</option>
+                <option value="all">All</option>
                 <option value="today">Today</option>
                 <option value="upcoming">Upcoming</option>
                 <option value="thisWeek">This Week</option>
                 <option value="past">Past</option>
               </select>
             </div>
+          </div>
+        </div>
+      )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
-              <select
-                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                onChange={(e) => {
-                  const value = e.target.value
-                  setFilteredAppointments((prev) => {
-                    const sorted = [...prev]
-                    if (value === "dateAsc") {
-                      sorted.sort((a, b) => new Date(a.requested_time) - new Date(b.requested_time))
-                    } else if (value === "dateDesc") {
-                      sorted.sort((a, b) => new Date(b.requested_time) - new Date(a.requested_time))
-                    } else if (value === "nameAsc") {
-                      sorted.sort((a, b) => a.mothers.full_name.localeCompare(b.mothers.full_name))
-                    } else if (value === "nameDesc") {
-                      sorted.sort((a, b) => b.mothers.full_name.localeCompare(a.mothers.full_name))
-                    }
-                    return sorted
-                  })
-                }}
-              >
-                <option value="dateAsc">Date (Oldest First)</option>
-                <option value="dateDesc">Date (Newest First)</option>
-                <option value="nameAsc">Patient Name (A-Z)</option>
-                <option value="nameDesc">Patient Name (Z-A)</option>
-              </select>
-            </div>
-          </div>
-        )}
-        {connected && (
-          <div className="mt-2 flex items-center text-xs text-green-600">
-            <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-            Real-time updates active
-          </div>
-        )}
-      </div>
-
-      {/* Appointments List */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
-          </div>
-        ) : filteredAppointments.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Patient
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date & Time
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Payment
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredAppointments.map((appointment) => (
-                  <tr key={appointment.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="h-10 w-10 flex-shrink-0">
-                          <img
-                            className="h-10 w-10 rounded-full object-cover border border-gray-200"
-                            src={appointment.mothers.profile_url || "/placeholder.svg?height=40&width=40"}
-                            alt={appointment.mothers.full_name}
-                          />
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{appointment.mothers.full_name}</div>
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      ) : filteredAppointments.length > 0 ? (
+        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+          <ul className="divide-y divide-gray-200">
+            {filteredAppointments.map((appointment) => (
+              <li key={appointment.id}>
+                <div className="px-4 py-4 sm:px-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0 h-10 w-10">
+                        <img
+                          className="h-10 w-10 rounded-full"
+                          src={appointment.mothers.profile_url || "/placeholder.svg?height=40&width=40"}
+                          alt={appointment.mothers.full_name}
+                        />
+                      </div>
+                      <div className="ml-4">
+                        <div className="text-sm font-medium text-gray-900">{appointment.mothers.full_name}</div>
+                        <div className="text-sm text-gray-500">
+                          {formatDate(appointment.requested_time)} at {formatTime(appointment.requested_time)}
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{formatDate(appointment.requested_time)}</div>
-                      <div className="text-sm text-gray-500">{formatTime(appointment.requested_time)}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          appointment.status === "accepted"
-                            ? "bg-green-100 text-green-800"
-                            : appointment.status === "declined"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-yellow-100 text-yellow-800"
-                        }`}
-                      >
-                        {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          appointment.payment_status === "paid"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-yellow-100 text-yellow-800"
-                        }`}
-                      >
-                        {appointment.payment_status.charAt(0).toUpperCase() + appointment.payment_status.slice(1)}
-                      </span>
-                      {appointment.payment_status === "unpaid" && (
-                        <button
-                          onClick={() => handleUpdatePayment(appointment.id, "paid")}
-                          className="ml-2 text-xs text-blue-600 hover:text-blue-800"
-                        >
-                          Mark as Paid
-                        </button>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {appointment.status === "pending" ? (
-                        <div className="flex space-x-2">
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {appointment.status === "pending" && (
+                        <>
                           <button
                             onClick={() => handleAccept(appointment.id)}
-                            className="flex items-center px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                            className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-5 font-medium rounded-md text-white bg-green-600 hover:bg-green-500 focus:outline-none focus:border-green-700 focus:shadow-outline-green active:bg-green-700 transition ease-in-out duration-150"
                           >
-                            <Check className="h-3 w-3 mr-1" />
+                            <Check className="h-4 w-4 mr-1" />
                             Accept
                           </button>
                           <button
                             onClick={() => handleReject(appointment.id)}
-                            className="flex items-center px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                            className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-5 font-medium rounded-md text-white bg-red-600 hover:bg-red-500 focus:outline-none focus:border-red-700 focus:shadow-outline-red active:bg-red-700 transition ease-in-out duration-150"
                           >
-                            <X className="h-3 w-3 mr-1" />
-                            Decline
+                            <X className="h-4 w-4 mr-1" />
+                            Reject
                           </button>
-                        </div>
-                      ) : appointment.status === "accepted" && isUpcoming(appointment.requested_time) ? (
+                        </>
+                      )}
+                      {appointment.status === "accepted" && isUpcoming(appointment.requested_time) && (
                         <button
                           onClick={() => joinMeeting(appointment.video_conference_link)}
-                          className="flex items-center px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                          className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-5 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-500 focus:outline-none focus:border-blue-700 focus:shadow-outline-blue active:bg-blue-700 transition ease-in-out duration-150"
                         >
-                          <Video className="h-3 w-3 mr-1" />
-                          Join Call
+                          <Video className="h-4 w-4 mr-1" />
+                          Join Meeting
                         </button>
-                      ) : (
-                        <span className="text-gray-500">
-                          {appointment.status === "declined" ? "Declined" : "Completed"}
-                        </span>
                       )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-12">
-            <Calendar className="h-16 w-16 text-gray-300 mb-4" />
-            <p className="text-gray-500 text-lg">No appointments found</p>
-            <p className="text-gray-400 text-sm">
-              {searchTerm || statusFilter !== "all" || dateFilter !== "all"
-                ? "Try adjusting your filters to see more results"
-                : "You don't have any appointments scheduled yet"}
-            </p>
-          </div>
-        )}
-      </div>
+                      {appointment.payment_status === "unpaid" && (
+                        <button
+                          onClick={() => handleUpdatePayment(appointment.id, "paid")}
+                          className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-5 font-medium rounded-md text-white bg-yellow-600 hover:bg-yellow-500 focus:outline-none focus:border-yellow-700 focus:shadow-outline-yellow active:bg-yellow-700 transition ease-in-out duration-150"
+                        >
+                          Mark as Paid
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-2 sm:flex sm:justify-between">
+                    <div className="sm:flex">
+                      <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
+                        <Calendar className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
+                        Status: {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
+                      Payment:{" "}
+                      {appointment.payment_status.charAt(0).toUpperCase() + appointment.payment_status.slice(1)}
+                    </div>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <div className="text-center py-12">
+          <Calendar className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No appointments</h3>
+          <p className="mt-1 text-sm text-gray-500">There are no appointments matching your current filters.</p>
+        </div>
+      )}
     </div>
   )
 }

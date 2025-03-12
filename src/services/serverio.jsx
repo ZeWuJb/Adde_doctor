@@ -27,7 +27,7 @@ export const useSocketNotifications = () => {
     console.log("Connecting to Socket.io with doctor ID:", doctorId)
 
     // Connect to the Socket.io server
-    const socketInstance = io(import.meta.env.VITE_SOCKET_SERVER_URL || "http://localhost:3000", {
+    const socketInstance = io(import.meta.env.VITE_SOCKET_SERVER_URL || "http://192.168.156.180:3000", {
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
       autoConnect: true,

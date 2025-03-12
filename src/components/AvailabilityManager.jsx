@@ -180,123 +180,123 @@ const AvailabilityManager = () => {
 
   // Handle form submission for advanced scheduling
   const handleSubmitSchedule = async (e) => {
-    e.preventDefault();
-  
+    e.preventDefault()
+
     if (!doctorId) {
-      setError("Doctor information not available");
-      return;
+      setError("Doctor information not available")
+      return
     }
-  
+
     // Validate form
-    const selectedDays = Object.values(schedule.daysOfWeek).filter(Boolean).length;
+    const selectedDays = Object.values(schedule.daysOfWeek).filter(Boolean).length
     if (selectedDays === 0) {
-      setError("Please select at least one day of the week");
-      return;
+      setError("Please select at least one day of the week")
+      return
     }
-  
+
     // Generate all dates based on selected days and date range
-    const dates = generateDates();
+    const dates = generateDates()
     if (dates.length === 0) {
-      setError("No dates were generated with the selected criteria");
-      return;
+      setError("No dates were generated with the selected criteria")
+      return
     }
-  
-    setLoading(true);
-    setError(null);
-  
+
+    setLoading(true)
+    setError(null)
+
     try {
       // Get current availability
-      const { success, data: currentAvailability, recordId } = await fetchDoctorAvailability(doctorId);
+      const { success, data: currentAvailability, recordId } = await fetchDoctorAvailability(doctorId)
       if (!success) {
-        throw new Error("Failed to fetch current availability");
+        throw new Error("Failed to fetch current availability")
       }
-  
+
       // Create a copy of the current availability
-      const updatedAvailability = { ...currentAvailability };
-  
+      const updatedAvailability = { ...currentAvailability }
+
       // Ensure dates array exists
       if (!updatedAvailability.dates) {
-        updatedAvailability.dates = [];
+        updatedAvailability.dates = []
       }
-  
+
       // For each date and time slot, add to availability
-      let addedSlots = 0;
-      let skippedSlots = 0;
-  
+      let addedSlots = 0
+      let skippedSlots = 0
+
       for (const date of dates) {
-        const dateString = date.toISOString().split("T")[0];
-  
+        const dateString = date.toISOString().split("T")[0]
+
         // Find if the date already exists in the availability
-        let dateIndex = updatedAvailability.dates.findIndex((d) => d.date === dateString);
-  
+        let dateIndex = updatedAvailability.dates.findIndex((d) => d.date === dateString)
+
         // If date doesn't exist, add it
         if (dateIndex === -1) {
           updatedAvailability.dates.push({
             date: dateString,
             slots: [],
-          });
-          dateIndex = updatedAvailability.dates.length - 1;
+          })
+          dateIndex = updatedAvailability.dates.length - 1
         }
-  
+
         // For each time slot
         for (const timeSlot of schedule.timeSlots) {
           // Generate hourly slots between start and end time
-          const slots = [];
-          let currentTime = timeSlot.startTime;
-  
+          const slots = []
+          let currentTime = timeSlot.startTime
+
           while (currentTime < timeSlot.endTime) {
             // Check if slot already exists
             if (!updatedAvailability.dates[dateIndex].slots.includes(currentTime)) {
-              slots.push(currentTime);
-              addedSlots++;
+              slots.push(currentTime)
+              addedSlots++
             } else {
-              skippedSlots++;
+              skippedSlots++
             }
-  
+
             // Move to next hour
-            const [hours, minutes] = currentTime.split(":").map(Number);
-            const timeDate = new Date();
-            timeDate.setHours(hours, minutes, 0, 0);
-            timeDate.setHours(timeDate.getHours() + 1);
-            currentTime = `${String(timeDate.getHours()).padStart(2, "0")}:${String(timeDate.getMinutes()).padStart(2, "0")}`;
+            const [hours, minutes] = currentTime.split(":").map(Number)
+            const timeDate = new Date()
+            timeDate.setHours(hours, minutes, 0, 0)
+            timeDate.setHours(timeDate.getHours() + 1)
+            currentTime = `${String(timeDate.getHours()).padStart(2, "0")}:${String(timeDate.getMinutes()).padStart(2, "0")}`
           }
-  
+
           // Add slots to the date
-          updatedAvailability.dates[dateIndex].slots = [...updatedAvailability.dates[dateIndex].slots, ...slots].sort();
+          updatedAvailability.dates[dateIndex].slots = [...updatedAvailability.dates[dateIndex].slots, ...slots].sort()
         }
       }
-  
+
       // Sort dates
-      updatedAvailability.dates.sort((a, b) => new Date(a.date) - new Date(b.date));
-  
-      console.log("Saving availability with recordId:", recordId);
-  
+      updatedAvailability.dates.sort((a, b) => new Date(a.date) - new Date(b.date))
+
+      console.log("Saving availability with recordId:", recordId)
+
       // Update availability in database
-      const updateResult = await updateDoctorAvailability(doctorId, updatedAvailability, recordId);
+      const updateResult = await updateDoctorAvailability(doctorId, updatedAvailability, recordId)
       if (!updateResult.success) {
-        throw new Error(updateResult.error?.message || "Failed to update availability");
+        throw new Error(updateResult.error?.message || "Failed to update availability")
       }
-  
+
       // Update local state with the returned data
-      setAvailabilityData(updatedAvailability);
-  
+      setAvailabilityData(updatedAvailability)
+
       // Show success message
       setSuccessMessage(
         `Successfully added ${addedSlots} time slots${skippedSlots > 0 ? ` (${skippedSlots} duplicates skipped)` : ""}`,
-      );
-      setTimeout(() => setSuccessMessage(""), 5000);
-  
+      )
+      setTimeout(() => setSuccessMessage(""), 5000)
+
       // Reset form if not recurring
       if (!isRecurring) {
-        setIsAddingSlot(false);
+        setIsAddingSlot(false)
       }
     } catch (err) {
-      console.error("Error setting availability:", err);
-      setError(err.message || "An unexpected error occurred");
+      console.error("Error setting availability:", err)
+      setError(err.message || "An unexpected error occurred")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleDeleteSlot = async (date, slot) => {
     setLoading(true)
@@ -515,15 +515,9 @@ const AvailabilityManager = () => {
                     />
                   </div>
                 </div>
-                {schedule.timeSlots.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeTimeSlot(index)}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 className="h-5 w-5" />
-                  </button>
-                )}
+                <button type="button" onClick={() => removeTimeSlot(index)} className="text-red-600 hover:text-red-700">
+                  <Trash2 className="h-5 w-5" />
+                </button>
               </div>
             ))}
             <p className="text-xs text-gray-500 mt-1 flex items-center">
@@ -585,7 +579,7 @@ const AvailabilityManager = () => {
                       className="text-red-600 hover:text-red-900"
                       aria-label="Delete slot"
                     >
-                      <Trash2 className="w-5 w-5" />
+                      <Trash2 />
                     </button>
                   </td>
                 </tr>
