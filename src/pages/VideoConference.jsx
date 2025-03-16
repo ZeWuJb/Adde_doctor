@@ -1,7 +1,7 @@
-import PropTypes from "prop-types";
+import PropTypes from "prop-types"
 
 const VideoConference = ({ appointment }) => {
-  const meetingLink = `https://meet.jit.si/${appointment.id}`;
+  const meetingLink = `https://meet.jit.si/${appointment.id}`
 
   return (
     <div className="mt-8">
@@ -17,8 +17,8 @@ const VideoConference = ({ appointment }) => {
         Join Meeting
       </a>
     </div>
-  );
-};
+  )
+}
 
 // PropType validation for 'appointment'
 VideoConference.propTypes = {
@@ -27,6 +27,7 @@ VideoConference.propTypes = {
     patientName: PropTypes.string.isRequired, // Ensure 'patientName' is a string
     time: PropTypes.string.isRequired, // Ensure 'time' is a string (ISO format)
   }).isRequired,
-};
+}
 
-export default VideoConference;
+export default VideoConference
+

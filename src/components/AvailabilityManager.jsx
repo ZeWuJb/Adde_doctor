@@ -7,7 +7,7 @@ import {
   fetchDoctorAvailability,
   deleteAvailabilitySlot,
   updateDoctorAvailability,
-} from "../services/appointmentService"
+} from "../services/appointmentService.jsx"
 import { Calendar, Clock, Plus, Trash2, AlertCircle, Check, Info, RefreshCw } from "lucide-react"
 
 const AvailabilityManager = () => {

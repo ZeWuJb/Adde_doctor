@@ -25,13 +25,14 @@ export const fetchDoctorPatients = async (doctorId) => {
       .order("full_name", { ascending: true })
 
     if (error) throw error
-    
+
     // Process the data to add appointment counts
-    const processedData = data.map(patient => ({
+    const processedData = data.map((patient) => ({
       ...patient,
       total_appointments: patient.appointments ? patient.appointments.length : 0,
-      completed_appointments: patient.appointments ? 
-        patient.appointments.filter(a => a.status === "accepted" && new Date(a.requested_time) < new Date()).length : 0
+      completed_appointments: patient.appointments
+        ? patient.appointments.filter((a) => a.status === "accepted" && new Date(a.requested_time) < new Date()).length
+        : 0,
     }))
 
     return { success: true, data: processedData }
@@ -85,7 +86,7 @@ export const addPatient = async (doctorId, patientData) => {
       .insert({
         ...patientData,
         doctor_id: doctorId,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       })
       .select()
 
@@ -100,11 +101,7 @@ export const addPatient = async (doctorId, patientData) => {
 // Update a patient
 export const updatePatient = async (patientId, patientData) => {
   try {
-    const { data, error } = await supabase
-      .from("mothers")
-      .update(patientData)
-      .eq("id", patientId)
-      .select()
+    const { data, error } = await supabase.from("mothers").update(patientData).eq("id", patientId).select()
 
     if (error) throw error
     return { success: true, data: data[0] }
@@ -117,19 +114,15 @@ export const updatePatient = async (patientId, patientData) => {
 // Upload patient profile image
 export const uploadPatientImage = async (patientId, file) => {
   try {
-    const fileExt = file.name.split('.').pop()
+    const fileExt = file.name.split(".").pop()
     const fileName = `${patientId}-${Math.random().toString(36).substring(2)}.${fileExt}`
     const filePath = `patient-profiles/${fileName}`
 
-    const { error: uploadError } = await supabase.storage
-      .from('patient-profiles')
-      .upload(filePath, file)
+    const { error: uploadError } = await supabase.storage.from("patient-profiles").upload(filePath, file)
 
     if (uploadError) throw uploadError
 
-    const { data: urlData } = supabase.storage
-      .from('patient-profiles')
-      .getPublicUrl(filePath)
+    const { data: urlData } = supabase.storage.from("patient-profiles").getPublicUrl(filePath)
 
     // Update the patient record with the new profile URL
     const { error: updateError } = await supabase
@@ -139,15 +132,16 @@ export const uploadPatientImage = async (patientId, file) => {
 
     if (updateError) throw updateError
 
-    return { 
-      success: true, 
-      url: urlData.publicUrl 
+    return {
+      success: true,
+      url: urlData.publicUrl,
     }
   } catch (error) {
     console.error("Error uploading patient image:", error.message)
-    return { 
-      success: false, 
-      error
+    return {
+      success: false,
+      error,
     }
   }
 }
+

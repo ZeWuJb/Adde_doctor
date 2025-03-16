@@ -1,17 +1,19 @@
-import PropTypes from "prop-types";
+"use client"
+
+import PropTypes from "prop-types"
 
 const PendingRequests = ({ requests }) => {
   const handleAccept = (id) => {
-    alert(`Request ${id} accepted!`);
-  };
+    alert(`Request ${id} accepted!`)
+  }
 
   const handleReject = (id) => {
-    alert(`Request ${id} rejected!`);
-  };
+    alert(`Request ${id} rejected!`)
+  }
 
   // Ensure requests is an array
   if (!Array.isArray(requests)) {
-    return <p>No pending requests.</p>;
+    return <p>No pending requests.</p>
   }
 
   return (
@@ -51,8 +53,8 @@ const PendingRequests = ({ requests }) => {
         <p>No pending requests.</p>
       )}
     </div>
-  );
-};
+  )
+}
 
 // PropType validation for 'requests'
 PendingRequests.propTypes = {
@@ -60,8 +62,9 @@ PendingRequests.propTypes = {
     PropTypes.shape({
       id: PropTypes.number.isRequired,
       patientName: PropTypes.string.isRequired,
-    })
+    }),
   ).isRequired,
-};
+}
 
-export default PendingRequests;
+export default PendingRequests
+

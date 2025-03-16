@@ -9,7 +9,8 @@ import {
   updatePaymentStatus,
 } from "../services/appointmentService"
 import { Calendar, Search, Filter, ChevronDown, Video, Check, X, AlertCircle } from "lucide-react"
-import { useSocketNotifications } from "../services/serverio.jsx"
+import { useSocketNotifications } from "../hooks/useSocketNotifications"
+import socketService from "../services/socketService"
 
 const AppointmentsPage = () => {
   const { session } = UserAuth()
@@ -154,11 +155,16 @@ const AppointmentsPage = () => {
     setFilteredAppointments(filtered)
   }, [appointments, searchTerm, statusFilter, dateFilter])
 
+  // Update the handleAccept function to use socketService
   const handleAccept = async (id) => {
     try {
+      // First update in the database
       const result = await updateAppointmentStatus(id, "accepted")
 
       if (result.success) {
+        // Then notify via socket
+        socketService.acceptAppointment(id)
+
         setAppointments((prevAppointments) =>
           prevAppointments.map((appointment) =>
             appointment.id === id
@@ -175,11 +181,16 @@ const AppointmentsPage = () => {
     }
   }
 
+  // Update the handleReject function to use socketService
   const handleReject = async (id) => {
     try {
+      // First update in the database
       const result = await updateAppointmentStatus(id, "declined")
 
       if (result.success) {
+        // Then notify via socket
+        socketService.declineAppointment(id)
+
         setAppointments((prevAppointments) =>
           prevAppointments.map((appointment) =>
             appointment.id === id ? { ...appointment, status: "declined" } : appointment,

@@ -6,7 +6,6 @@ import {
   Calendar,
   Clock,
   User,
-  Bell,
   LogOut,
   Menu,
   X,
@@ -32,16 +31,19 @@ import ReportsPage from "./ReportsPage"
 import SettingsPage from "./SettingsPage"
 import HelpPage from "./HelpPage"
 import DashboardContent from "./DashboardContent"
-
-// Add this import at the top of the file:
-import { useSocketNotifications } from "../services/serverio"
+import NotificationsPanel from "./NotificationPanel"
+import ConnectionStatus from "./ConnectionStatus"
 
 import { useNavigate, useLocation } from "react-router-dom"
+
+// Add this import at the top
+import socketService from "../services/socketService"
 
 // Update the Dashboard component to remove the unused activeTab prop
 const DoctorDashboard = () => {
   // Add this near the beginning of the component function:
-  const { unreadCount: unreadNotifications } = useSocketNotifications()
+  // const { unreadCount: unreadNotifications } = useSocketNotifications()
+
   // Update to use userData directly from context
   const { session, userData, signOut } = UserAuth()
   const [doctorId, setDoctorId] = useState(null)
@@ -82,6 +84,23 @@ const DoctorDashboard = () => {
     }
   }, [session, userData])
 
+  // Add this effect after the doctorId is set
+  useEffect(() => {
+    if (doctorId) {
+      // Initialize socket connection with the doctor's ID
+      socketService.initialize(doctorId).then((success) => {
+        if (!success) {
+          console.error("Failed to initialize socket connection")
+        }
+      })
+    }
+
+    return () => {
+      // Disconnect socket when component unmounts
+      socketService.disconnect()
+    }
+  }, [doctorId])
+
   // Then, fetch data once we have the doctor ID
   useEffect(() => {
     const fetchData = async () => {
@@ -118,6 +137,43 @@ const DoctorDashboard = () => {
     }
 
     fetchData()
+  }, [doctorId])
+
+  // Setup a polling mechanism to refresh data periodically
+  useEffect(() => {
+    if (!doctorId) return
+
+    const refreshInterval = setInterval(() => {
+      // Silently refresh data in the background
+      const refreshData = async () => {
+        try {
+          // Refresh appointments
+          const appointmentsResult = await fetchDoctorAppointments(doctorId)
+          if (appointmentsResult.success) {
+            setAppointments(appointmentsResult.data)
+          }
+
+          // Refresh statistics
+          const statsResult = await fetchDoctorStatistics(doctorId)
+          if (statsResult.success) {
+            setStatistics(statsResult.data)
+          }
+
+          // Refresh activity
+          const activityResult = await fetchRecentActivity(doctorId, 3)
+          if (activityResult.success) {
+            setRecentActivity(activityResult.data)
+          }
+        } catch (err) {
+          console.error("Error refreshing data:", err.message)
+          // Don't set UI error for background refresh
+        }
+      }
+
+      refreshData()
+    }, 60000) // Refresh every minute
+
+    return () => clearInterval(refreshInterval)
   }, [doctorId])
 
   const handleSignOut = async () => {
@@ -194,7 +250,7 @@ const DoctorDashboard = () => {
       <div
         className={`fixed inset-y-0 left-0 z-50 health-sidebar transition-all duration-300 ease-in-out ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0 ${sidebarMinimized ? "md:w-20" : "w-60"}`}
+        } md:translate-x-0 ${sidebarMinimized ? "md:w-20" : "w-64"}`}
       >
         <div className="flex flex-col h-full bg-white border-r border-gray-100">
           {/* Header */}
@@ -207,13 +263,13 @@ const DoctorDashboard = () => {
             {/* Toggle Button */}
             <button
               onClick={toggleSidebarMinimized}
-              className="md:block hidden items-center justify-center w-2 h-9 bg-primary-600 rounded-md border-primary-600 transition-colors duration-300"
+              className="md:flex hidden items-center justify-center w-8 h-8 rounded-md bg-primary-700 hover:bg-primary-800 transition-colors"
               aria-label={sidebarMinimized ? "Expand sidebar" : "Collapse sidebar"}
             >
               {sidebarMinimized ? (
-                <ChevronRight size={20} className="text-white" />
+                <ChevronRight size={18} className="text-white" />
               ) : (
-                <ChevronLeft size={20} className="text-white" />
+                <ChevronLeft size={18} className="text-white" />
               )}
             </button>
           </div>
@@ -225,7 +281,7 @@ const DoctorDashboard = () => {
             >
               {session?.user?.user_metadata?.avatar_url ? (
                 <img
-                  src={session.user.user_metadata.avatar_url || "/placeholder.svg"}
+                  src={session.user.user_metadata.avatar_url || "/placeholder.svg?height=64&width=64"}
                   alt="Profile"
                   className={`w-full h-full rounded-full object-cover ${sidebarMinimized ? "rounded-sm" : ""}`}
                 />
@@ -247,7 +303,7 @@ const DoctorDashboard = () => {
           </div>
 
           {/* Navigation */}
-          <nav className={`flex-1 overflow-y-auto ${sidebarMinimized ? "px-2" : "px-4"}`}>
+          <nav className={`flex-1 overflow-y-auto ${sidebarMinimized ? "px-2" : "px-4"} py-4`}>
             <ul className="space-y-1.5">
               {[
                 { name: "Dashboard", icon: Activity, path: "/dashboard" },
@@ -264,11 +320,17 @@ const DoctorDashboard = () => {
                   <button
                     onClick={() => navigate(item.path)}
                     className={`health-nav-item flex items-center w-full py-2 rounded-md transition-all ${
-                      location.pathname === item.path ? "bg-gray-100 text-gray-800" : "bg-gray-100 text-gray-600"
+                      location.pathname === item.path
+                        ? "bg-primary-50 text-primary-700 font-medium"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                     }`}
                     title={item.name}
                   >
-                    <item.icon className="icon mr-2" size={20} />
+                    <item.icon
+                      className={`${sidebarMinimized ? "mx-auto" : "mr-3"} h-5 w-5 ${
+                        location.pathname === item.path ? "text-primary-600" : "text-gray-500"
+                      }`}
+                    />
                     {!sidebarMinimized && <span className="flex-1">{item.name}</span>}
                   </button>
                 </li>
@@ -343,24 +405,14 @@ const DoctorDashboard = () => {
             </div>
 
             <div className="flex items-center space-x-4">
-              <button
-                className="relative p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg focus:outline-none"
-                aria-label="Notifications"
-              >
-                <Bell className="w-6 h-6" />
-                {unreadNotifications > 0 && (
-                  <span className="absolute top-0 right-0 flex items-center justify-center w-4 h-4 text-xs text-white bg-red-500 rounded-full">
-                    {unreadNotifications}
-                  </span>
-                )}
-              </button>
+              <NotificationsPanel />
 
               <div className="relative">
                 <button onClick={() => navigate("/profile")} className="flex items-center focus:outline-none">
                   <div className="w-9 h-9 rounded-full bg-teal-50 flex items-center justify-center border border-teal-100">
                     {session?.user?.user_metadata?.avatar_url ? (
                       <img
-                        src={session.user.user_metadata.avatar_url || "/placeholder.svg"}
+                        src={session.user.user_metadata.avatar_url || "/placeholder.svg?height=36&width=36"}
                         alt="Profile"
                         className="w-full h-full rounded-full object-cover"
                       />
@@ -418,11 +470,13 @@ const DoctorDashboard = () => {
             }
           })()}
         </main>
+
+        {/* Connection status indicator */}
+        <ConnectionStatus />
       </div>
     </div>
   )
 }
 
-// Remove the prop types validation since we're not using props anymore
 export default DoctorDashboard
 

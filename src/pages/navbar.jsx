@@ -1,8 +1,9 @@
+"use client"
 
-import { UserAuth } from "../context/AuthContext";
+import { UserAuth } from "../context/AuthContext"
 
 const Navbar = () => {
-  const { session } = UserAuth();
+  const { session } = UserAuth()
 
   return (
     <nav className="bg-gray-100 py-4 px-6 shadow-md">
@@ -18,14 +19,15 @@ const Navbar = () => {
 
         {/* Notifications Button */}
         <button
-  onClick={() => alert("View Notifications")}
-  className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition duration-300"
->
+          onClick={() => alert("View Notifications")}
+          className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition duration-300"
+        >
           Notifications
         </button>
       </div>
     </nav>
-  );
-};
+  )
+}
 
-export default Navbar;
+export default Navbar
+

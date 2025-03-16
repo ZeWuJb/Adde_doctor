@@ -3,20 +3,16 @@ import { supabase } from "../supabaseClient"
 // Fetch doctor settings
 export const fetchDoctorSettings = async (doctorId) => {
   try {
-    const { data, error } = await supabase
-      .from("doctor_settings")
-      .select("*")
-      .eq("doctor_id", doctorId)
-      .single()
+    const { data, error } = await supabase.from("doctor_settings").select("*").eq("doctor_id", doctorId).single()
 
     if (error) {
       // If no settings found, create default settings
-      if (error.code === 'PGRST116') {
+      if (error.code === "PGRST116") {
         return await createDefaultSettings(doctorId)
       }
       throw error
     }
-    
+
     return { success: true, data }
   } catch (error) {
     console.error("Error fetching doctor settings:", error.message)
@@ -33,18 +29,15 @@ const createDefaultSettings = async (doctorId) => {
       notification_sms: false,
       notification_app: true,
       appointment_reminder_hours: 24,
-      theme: 'light',
-      language: 'en',
-      time_zone: 'UTC',
-      calendar_view: 'week',
+      theme: "light",
+      language: "en",
+      time_zone: "UTC",
+      calendar_view: "week",
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     }
 
-    const { data, error } = await supabase
-      .from("doctor_settings")
-      .insert(defaultSettings)
-      .select()
+    const { data, error } = await supabase.from("doctor_settings").insert(defaultSettings).select()
 
     if (error) throw error
     return { success: true, data: data[0] }
@@ -59,7 +52,7 @@ export const updateDoctorSettings = async (doctorId, settings) => {
   try {
     const updatedSettings = {
       ...settings,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     }
 
     const { data, error } = await supabase
@@ -80,7 +73,7 @@ export const updateDoctorSettings = async (doctorId, settings) => {
 export const updateDoctorPassword = async (currentPassword, newPassword) => {
   try {
     const { error } = await supabase.auth.updateUser({
-      password: newPassword
+      password: newPassword,
     })
 
     if (error) throw error
@@ -90,3 +83,4 @@ export const updateDoctorPassword = async (currentPassword, newPassword) => {
     return { success: false, error }
   }
 }
+

@@ -56,16 +56,21 @@ export const markAllNotificationsAsRead = async (doctorId) => {
 // Set up real-time notifications
 export const subscribeToNotifications = (doctorId, callback) => {
   const subscription = supabase
-    .channel('notifications-channel')
-    .on('postgres_changes', { 
-      event: 'INSERT', 
-      schema: 'public', 
-      table: 'notifications',
-      filter: `recipient_id=eq.${doctorId}`
-    }, payload => {
-      callback(payload.new)
-    })
+    .channel("notifications-channel")
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "notifications",
+        filter: `recipient_id=eq.${doctorId}`,
+      },
+      (payload) => {
+        callback(payload.new)
+      },
+    )
     .subscribe()
 
   return subscription
 }
+
