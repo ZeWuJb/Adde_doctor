@@ -128,7 +128,7 @@ const AdminDashboard = () => {
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 transition-transform duration-300 ease-in-out`}
       >
         <div className="flex flex-col h-full">
-          <div className="flex items-center justify-center h-16 px-6 bg-blue-600">
+          <div className="flex items-center justify-center h-16 px-6 bg-gradient-to-r from-pink-500 to-purple-600">
             <h1 className="text-xl font-bold text-white">CareSync Admin</h1>
           </div>
 
@@ -155,32 +155,44 @@ const AdminDashboard = () => {
             <nav className="px-4 py-6">
               <ul className="space-y-2">
                 <li>
-                  <a href="#" className="flex items-center px-4 py-2 text-gray-700 bg-gray-100 rounded-md">
+                  <a href="#" className="flex items-center px-4 py-2 text-white bg-pink-600 rounded-md">
                     <PieChart className="w-5 h-5 mr-3" />
                     <span>Dashboard</span>
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="flex items-center px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md">
-                    <Users className="w-5 h-5 mr-3" />
+                  <a
+                    href="#"
+                    className="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-100 hover:text-pink-600 rounded-md"
+                  >
+                    <Users className="w-5 h-5 mr-3 text-gray-300" />
                     <span>Doctors</span>
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="flex items-center px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md">
-                    <Calendar className="w-5 h-5 mr-3" />
+                  <a
+                    href="#"
+                    className="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-100 hover:text-pink-600 rounded-md"
+                  >
+                    <Calendar className="w-5 h-5 mr-3 text-gray-300" />
                     <span>Appointments</span>
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="flex items-center px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md">
-                    <Activity className="w-5 h-5 mr-3" />
+                  <a
+                    href="#"
+                    className="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-100 hover:text-pink-600 rounded-md"
+                  >
+                    <Activity className="w-5 h-5 mr-3 text-gray-300" />
                     <span>Analytics</span>
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="flex items-center px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md">
-                    <Settings className="w-5 h-5 mr-3" />
+                  <a
+                    href="#"
+                    className="flex items-center px-4 py-2 text-gray-300 hover:bg-gray-100 hover:text-pink-600 rounded-md"
+                  >
+                    <Settings className="w-5 h-5 mr-3 text-gray-300" />
                     <span>Settings</span>
                   </a>
                 </li>

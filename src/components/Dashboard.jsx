@@ -35,16 +35,9 @@ import NotificationsPanel from "./NotificationPanel"
 import ConnectionStatus from "./ConnectionStatus"
 
 import { useNavigate, useLocation } from "react-router-dom"
-
-// Add this import at the top
 import socketService from "../services/socketService"
 
-// Update the Dashboard component to remove the unused activeTab prop
 const DoctorDashboard = () => {
-  // Add this near the beginning of the component function:
-  // const { unreadCount: unreadNotifications } = useSocketNotifications()
-
-  // Update to use userData directly from context
   const { session, userData, signOut } = UserAuth()
   const [doctorId, setDoctorId] = useState(null)
   const [appointments, setAppointments] = useState([])
@@ -244,17 +237,43 @@ const DoctorDashboard = () => {
     setSidebarMinimized(!sidebarMinimized)
   }
 
+  // Get page title based on current route
+  const getPageTitle = () => {
+    switch (location.pathname) {
+      case "/dashboard":
+        return "Dashboard"
+      case "/profile":
+        return "Doctor Profile"
+      case "/appointments":
+        return "Patient Appointments"
+      case "/availability":
+        return "Availability Schedule"
+      case "/statistics":
+        return "Statistics & Analytics"
+      case "/patients":
+        return "Expectant Mothers"
+      case "/reports":
+        return "Medical Reports"
+      case "/settings":
+        return "Account Settings"
+      case "/help":
+        return "Help & Support"
+      default:
+        return ""
+    }
+  }
+
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 health-sidebar transition-all duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 z-50 transition-all duration-300 ease-in-out ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0 ${sidebarMinimized ? "md:w-20" : "w-64"}`}
       >
-        <div className="flex flex-col h-full bg-white border-r border-gray-100">
+        <div className="flex flex-col h-full bg-white border-r border-gray-100 shadow-sm">
           {/* Header */}
-          <div className="flex items-center justify-between h-16 px-6 bg-primary-600 text-white">
+          <div className="flex items-center justify-between h-16 px-6 bg-gradient-to-r from-pink-500 to-purple-600 text-white">
             <div className={`flex items-center ${sidebarMinimized ? "hidden" : "block"}`}>
               <Heart className="mr-2" size={20} />
               <span className="text-xl font-bold">CareSync</span>
@@ -263,7 +282,7 @@ const DoctorDashboard = () => {
             {/* Toggle Button */}
             <button
               onClick={toggleSidebarMinimized}
-              className="md:flex hidden items-center justify-center w-8 h-8 rounded-md bg-primary-700 hover:bg-primary-800 transition-colors"
+              className="md:flex hidden items-center justify-center w-8 h-8 rounded-md bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors"
               aria-label={sidebarMinimized ? "Expand sidebar" : "Collapse sidebar"}
             >
               {sidebarMinimized ? (
@@ -277,7 +296,7 @@ const DoctorDashboard = () => {
           {/* User Information */}
           <div className="flex flex-col items-center py-6 border-b border-gray-100">
             <div
-              className={`relative w-16 h-16 mb-2 rounded-full bg-teal-50 flex items-center justify-center border-2 border-teal-100 ${sidebarMinimized ? "w-10 h-10" : ""}`}
+              className={`relative ${sidebarMinimized ? "w-10 h-10" : "w-16 h-16 mb-2"} rounded-full bg-pink-50 flex items-center justify-center border-2 border-pink-100`}
             >
               {session?.user?.user_metadata?.avatar_url ? (
                 <img
@@ -286,14 +305,13 @@ const DoctorDashboard = () => {
                   className={`w-full h-full rounded-full object-cover ${sidebarMinimized ? "rounded-sm" : ""}`}
                 />
               ) : (
-                <User size={sidebarMinimized ? 18 : 28} className="text-teal-600" />
+                <User size={sidebarMinimized ? 18 : 28} className="text-pink-600" />
               )}
             </div>
 
             {/* User Info Text - Only visible when expanded */}
             {!sidebarMinimized && (
               <>
-                {/* Update the user info display to use userData */}
                 <h2 className="text-lg font-medium text-gray-800 mt-2">
                   {userData?.full_name || session?.userData?.full_name || "Doctor"}
                 </h2>
@@ -319,16 +337,16 @@ const DoctorDashboard = () => {
                 <li key={item.name}>
                   <button
                     onClick={() => navigate(item.path)}
-                    className={`health-nav-item flex items-center w-full py-2 rounded-md transition-all ${
+                    className={`flex items-center w-full py-2.5 rounded-lg transition-all ${
                       location.pathname === item.path
-                        ? "bg-primary-50 text-primary-700 font-medium"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                    }`}
+                        ? "bg-pink-500 text-white font-medium"
+                        : "text-gray-400 hover:bg-gray-100 hover:text-pink-600"
+                    } ${sidebarMinimized ? "justify-center px-2" : "px-4"}`}
                     title={item.name}
                   >
                     <item.icon
-                      className={`${sidebarMinimized ? "mx-auto" : "mr-3"} h-5 w-5 ${
-                        location.pathname === item.path ? "text-primary-600" : "text-gray-500"
+                      className={`${sidebarMinimized ? "" : "mr-3"} h-5 w-5 ${
+                        location.pathname === item.path ? "text-white" : "text-gray-400"
                       }`}
                     />
                     {!sidebarMinimized && <span className="flex-1">{item.name}</span>}
@@ -343,12 +361,14 @@ const DoctorDashboard = () => {
             <button
               onClick={handleSignOut}
               className={`flex items-center justify-center w-full px-4 py-2 text-sm rounded-lg transition-all ${
-                sidebarMinimized ? "bg-red-500 hover:bg-red-600 text-white p-2" : "hover:bg-red-50 text-red-700"
+                sidebarMinimized
+                  ? "bg-red-500 hover:bg-red-600 text-white p-2"
+                  : "text-red-600 hover:bg-red-50 hover:text-red-700"
               }`}
               title="Sign Out"
             >
               <LogOut
-                className={`${sidebarMinimized ? "" : "mr-2"} ${sidebarMinimized ? "text-white" : ""}`}
+                className={`${sidebarMinimized ? "" : "mr-2"} ${sidebarMinimized ? "text-white" : "text-red-500"}`}
                 size={20}
               />
               {!sidebarMinimized && <span>Sign Out</span>}
@@ -372,27 +392,7 @@ const DoctorDashboard = () => {
               </button>
 
               <div className="ml-4 md:ml-0">
-                <h2 className="text-lg font-medium text-gray-800">
-                  {location.pathname === "/dashboard"
-                    ? "Dashboard"
-                    : location.pathname === "/availability"
-                      ? "Availability Management"
-                      : location.pathname === "/profile"
-                        ? "Profile"
-                        : location.pathname === "/appointments"
-                          ? "Appointments"
-                          : location.pathname === "/statistics"
-                            ? "Statistics & Analytics"
-                            : location.pathname === "/patients"
-                              ? "Patients"
-                              : location.pathname === "/reports"
-                                ? "Reports"
-                                : location.pathname === "/settings"
-                                  ? "Settings"
-                                  : location.pathname === "/help"
-                                    ? "Help"
-                                    : ""}
-                </h2>
+                <h2 className="text-lg font-medium text-gray-800">{getPageTitle()}</h2>
                 <p className="text-sm text-gray-500">
                   {new Date().toLocaleDateString("en-US", {
                     weekday: "long",
@@ -409,7 +409,7 @@ const DoctorDashboard = () => {
 
               <div className="relative">
                 <button onClick={() => navigate("/profile")} className="flex items-center focus:outline-none">
-                  <div className="w-9 h-9 rounded-full bg-teal-50 flex items-center justify-center border border-teal-100">
+                  <div className="w-9 h-9 rounded-full bg-pink-50 flex items-center justify-center border border-pink-100">
                     {session?.user?.user_metadata?.avatar_url ? (
                       <img
                         src={session.user.user_metadata.avatar_url || "/placeholder.svg?height=36&width=36"}
@@ -417,7 +417,7 @@ const DoctorDashboard = () => {
                         className="w-full h-full rounded-full object-cover"
                       />
                     ) : (
-                      <User size={18} className="text-teal-600" />
+                      <User size={18} className="text-pink-600" />
                     )}
                   </div>
                 </button>
