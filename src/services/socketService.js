@@ -1,10 +1,11 @@
-import { saveSocketAppointment, updateAppointmentStatus } from "./appointmentService"
+"use client"
+// Remove the import of saveSocketAppointment since we won't use it
 
 class SocketService {
   constructor() {
     this.socket = null
     this.connected = false
-    this.serverUrl = "http://localhost:3000" // Change to your server URL in production
+    this.serverUrl = "http://192.168.127.180:3000" // Change to your server URL in production
     this.callbacks = {
       onNewAppointment: null,
       onAppointmentAccepted: null,
@@ -74,7 +75,7 @@ class SocketService {
     })
 
     // Appointment events
-    this.socket.on("new_appointment", async (data) => {
+    this.socket.on("new_appointment", (data) => {
       console.log("New appointment request received:", data)
 
       // Validate the doctor_id matches this doctor
@@ -83,27 +84,7 @@ class SocketService {
         return // Skip processing if doctor_id doesn't match
       }
 
-      // Save the appointment to the database
-      if (data.appointmentId && data.doctor_id && data.mother_id) {
-        try {
-          // Format the data for our database
-          const appointmentData = {
-            doctor_id: data.doctor_id,
-            mother_id: data.mother_id,
-            requested_time: data.requested_time,
-            status: "pending",
-            video_conference_link: null,
-          }
-
-          // Save to database
-          await saveSocketAppointment(appointmentData)
-        } catch (err) {
-          console.error("Error saving socket appointment:", err)
-        }
-      } else {
-        console.error("Missing required fields in appointment data:", data)
-      }
-
+      // No database saving here - just notify the UI
       if (this.callbacks.onNewAppointment) {
         this.callbacks.onNewAppointment(data)
       }
@@ -150,11 +131,10 @@ class SocketService {
       return false
     }
 
+    console.log("Emitting accept_appointment event for ID:", appointmentId)
     this.socket.emit("accept_appointment", { appointmentId })
 
-    // Also update in our database
-    updateAppointmentStatus(appointmentId, "accepted")
-
+    // No database update here - this is handled by the component
     return true
   }
 
@@ -164,11 +144,10 @@ class SocketService {
       return false
     }
 
+    console.log("Emitting decline_appointment event for ID:", appointmentId)
     this.socket.emit("decline_appointment", { appointmentId })
 
-    // Also update in our database
-    updateAppointmentStatus(appointmentId, "declined")
-
+    // No database update for declined appointments
     return true
   }
 

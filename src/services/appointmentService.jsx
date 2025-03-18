@@ -29,7 +29,7 @@ export const fetchDoctorAppointments = async (doctorId) => {
         created_at,
         updated_at,
         mothers:mother_id (
-          id, 
+          user_id, 
           full_name, 
           profile_url
         )

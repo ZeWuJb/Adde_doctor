@@ -21,6 +21,7 @@ export const useSocketNotifications = () => {
         const result = await getDoctorIdFromUserId(session.user.id)
         if (result.success) {
           const doctorId = result.doctorId
+          console.log("Initializing socket with doctor ID:", doctorId)
 
           // Initialize socket connection
           const initialized = await socketService.initialize(doctorId)
@@ -28,11 +29,13 @@ export const useSocketNotifications = () => {
           if (initialized) {
             // Set up connection status handler
             socketService.onConnectionChange((status) => {
+              console.log("Socket connection status changed:", status)
               setConnected(status)
             })
 
             // Set up new appointment handler
             socketService.onNewAppointment((data) => {
+              console.log("New appointment received:", data)
               // Add to notifications
               const newNotification = {
                 id: Date.now().toString(),
@@ -44,11 +47,12 @@ export const useSocketNotifications = () => {
               setNotifications((prev) => [newNotification, ...prev])
               setUnreadCount((prev) => prev + 1)
 
-              // Add to pending appointments
+              // Add to pending appointments (in memory only, not in database)
               setPendingAppointments((prev) => [
                 ...prev,
                 {
                   appointmentId: data.appointmentId,
+                  doctor_id: data.doctor_id,
                   mother_id: data.mother_id,
                   mother_name: data.mother_name || "Unknown Patient",
                   requested_time: data.requested_time,
@@ -59,6 +63,7 @@ export const useSocketNotifications = () => {
 
             // Set up appointment accepted handler
             socketService.onAppointmentAccepted((data) => {
+              console.log("Appointment accepted:", data)
               const newNotification = {
                 id: Date.now().toString(),
                 message: `Appointment with ${data.mother_name || "a patient"} was accepted`,
@@ -75,6 +80,7 @@ export const useSocketNotifications = () => {
 
             // Set up appointment declined handler
             socketService.onAppointmentDeclined((data) => {
+              console.log("Appointment declined:", data)
               const newNotification = {
                 id: Date.now().toString(),
                 message: `Appointment with ${data.mother_name || "a patient"} was declined`,
@@ -99,25 +105,7 @@ export const useSocketNotifications = () => {
 
     initializeSocket()
 
-    // Simulate receiving a new notification after 10 seconds (for testing)
-    const notificationTimer = setTimeout(() => {
-      if (connected) {
-        const newNotification = {
-          id: Date.now().toString(),
-          message: "New message from patient Maria Garcia",
-          timestamp: new Date().toISOString(),
-          read: false,
-        }
-
-        setNotifications((prev) => [newNotification, ...prev])
-        setUnreadCount((prev) => prev + 1)
-      }
-    }, 10000)
-
     return () => {
-      // Clean up timers
-      clearTimeout(notificationTimer)
-
       // Disconnect socket
       socketService.disconnect()
     }

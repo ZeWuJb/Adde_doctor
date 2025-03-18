@@ -20,7 +20,7 @@ import {
   BarChart,
 } from "lucide-react"
 
-import { getDoctorIdFromUserId, fetchDoctorAppointments, updateAppointmentStatus } from "../services/appointmentService"
+import { getDoctorIdFromUserId, fetchDoctorAppointments } from "../services/appointmentService"
 import { fetchDoctorStatistics, fetchRecentActivity } from "../services/dashboardService"
 import AvailabilityManager from "./AvailabilityManager"
 import ProfilePage from "./ProfilePage"
@@ -36,6 +36,7 @@ import ConnectionStatus from "./ConnectionStatus"
 
 import { useNavigate, useLocation } from "react-router-dom"
 import socketService from "../services/socketService"
+import { saveAppointmentWhenAccepted } from "../services/appointmentService"
 
 const DoctorDashboard = () => {
   const { session, userData, signOut } = UserAuth()
@@ -175,14 +176,31 @@ const DoctorDashboard = () => {
 
   const handleAccept = async (id) => {
     try {
-      const result = await updateAppointmentStatus(id, "accepted")
+      // Find the appointment in the local state
+      const appointment = appointments.find((appt) => appt.id === id)
+      if (!appointment) {
+        setError("Appointment not found")
+        return
+      }
+
+      console.log("Accepting appointment in Dashboard:", appointment)
+
+      // Save to database only when accepted
+      const result = await saveAppointmentWhenAccepted({
+        doctor_id: appointment.doctor_id,
+        mother_id: appointment.mother_id,
+        requested_time: appointment.requested_time,
+      })
 
       if (result.success) {
+        console.log("Successfully saved appointment to database:", result.data)
+
+        // Update the appointment in the local state
         setAppointments(
-          appointments.map((appointment) =>
-            appointment.id === id
-              ? { ...appointment, status: "accepted", video_conference_link: result.data.video_conference_link }
-              : appointment,
+          appointments.map((appt) =>
+            appt.id === id
+              ? { ...appt, status: "accepted", video_conference_link: result.data.video_conference_link }
+              : appt,
           ),
         )
 
@@ -191,8 +209,12 @@ const DoctorDashboard = () => {
         if (statsResult.success) {
           setStatistics(statsResult.data)
         }
+
+        // Notify the socket server
+        socketService.acceptAppointment(id)
       } else {
-        setError("Failed to accept appointment. Please try again.")
+        console.error("Failed to save appointment:", result.error)
+        setError("Failed to accept appointment: " + (result.error?.message || "Unknown error"))
       }
     } catch (err) {
       console.error("Error accepting appointment:", err.message)
@@ -200,28 +222,26 @@ const DoctorDashboard = () => {
     }
   }
 
+  // Modified reject handler
   const handleReject = async (id) => {
+    console.log("Rejecting appointment with ID:", id)
+
+    // Just update the local state - no database interaction needed
+    setAppointments(
+      appointments.map((appointment) => (appointment.id === id ? { ...appointment, status: "declined" } : appointment)),
+    )
+
+    // Notify the socket server
+    socketService.declineAppointment(id)
+
+    // Refresh statistics
     try {
-      const result = await updateAppointmentStatus(id, "declined")
-
-      if (result.success) {
-        setAppointments(
-          appointments.map((appointment) =>
-            appointment.id === id ? { ...appointment, status: "declined" } : appointment,
-          ),
-        )
-
-        // Refresh statistics after declining
-        const statsResult = await fetchDoctorStatistics(doctorId)
-        if (statsResult.success) {
-          setStatistics(statsResult.data)
-        }
-      } else {
-        setError("Failed to decline appointment. Please try again.")
+      const statsResult = await fetchDoctorStatistics(doctorId)
+      if (statsResult.success) {
+        setStatistics(statsResult.data)
       }
     } catch (err) {
-      console.error("Error declining appointment:", err.message)
-      setError("An unexpected error occurred. Please try again.")
+      console.error("Error refreshing statistics:", err.message)
     }
   }
 

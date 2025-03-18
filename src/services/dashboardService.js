@@ -113,7 +113,7 @@ export const fetchRecentActivity = async (doctorId, limit = 5) => {
         payment_status,
         updated_at,
         mothers:mother_id (
-          id, 
+          user_id , 
           full_name, 
           profile_url
         )
