@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { UserAuth } from "../context/AuthContext"
-import { fetchDoctorProfile, updateDoctorProfile, uploadProfileImage } from "../services/profileService"
+import { fetchDoctorProfile, updateDoctorProfile, uploadProfileImage } from "../services/profileService.js"
 import { User, Mail, Briefcase, DollarSign, Users, Calendar, Edit2, Save, X, Upload } from "lucide-react"
 
 const ProfilePage = () => {

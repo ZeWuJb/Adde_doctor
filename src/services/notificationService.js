@@ -3,6 +3,18 @@ import { supabase } from "../supabaseClient"
 // Fetch notifications for a doctor
 export const fetchDoctorNotifications = async (doctorId) => {
   try {
+    // First check if the notifications table exists
+    const { error: tableCheckError } = await supabase
+      .from("notifications")
+      .select("count", { count: "exact", head: true })
+      .limit(1)
+
+    // If the table doesn't exist, return an empty array instead of throwing an error
+    if (tableCheckError && tableCheckError.message.includes("does not exist")) {
+      console.warn("Notifications table does not exist in the database")
+      return { success: true, data: [] }
+    }
+
     const { data, error } = await supabase
       .from("notifications")
       .select("*")
@@ -11,16 +23,27 @@ export const fetchDoctorNotifications = async (doctorId) => {
       .limit(20)
 
     if (error) throw error
-    return { success: true, data }
+    return { success: true, data: data || [] }
   } catch (error) {
     console.error("Error fetching notifications:", error.message)
-    return { success: false, error }
+    return { success: false, error, data: [] }
   }
 }
 
 // Mark notification as read
 export const markNotificationAsRead = async (notificationId) => {
   try {
+    // Check if notifications table exists
+    const { error: tableCheckError } = await supabase
+      .from("notifications")
+      .select("count", { count: "exact", head: true })
+      .limit(1)
+
+    if (tableCheckError && tableCheckError.message.includes("does not exist")) {
+      console.warn("Notifications table does not exist in the database")
+      return { success: true, data: { id: notificationId, read: true } }
+    }
+
     const { data, error } = await supabase
       .from("notifications")
       .update({ read: true })
@@ -28,7 +51,7 @@ export const markNotificationAsRead = async (notificationId) => {
       .select()
 
     if (error) throw error
-    return { success: true, data: data[0] }
+    return { success: true, data: data?.[0] || { id: notificationId, read: true } }
   } catch (error) {
     console.error("Error marking notification as read:", error.message)
     return { success: false, error }
@@ -38,6 +61,17 @@ export const markNotificationAsRead = async (notificationId) => {
 // Mark all notifications as read
 export const markAllNotificationsAsRead = async (doctorId) => {
   try {
+    // Check if notifications table exists
+    const { error: tableCheckError } = await supabase
+      .from("notifications")
+      .select("count", { count: "exact", head: true })
+      .limit(1)
+
+    if (tableCheckError && tableCheckError.message.includes("does not exist")) {
+      console.warn("Notifications table does not exist in the database")
+      return { success: true, data: [] }
+    }
+
     const { data, error } = await supabase
       .from("notifications")
       .update({ read: true })
@@ -46,7 +80,7 @@ export const markAllNotificationsAsRead = async (doctorId) => {
       .select()
 
     if (error) throw error
-    return { success: true, data }
+    return { success: true, data: data || [] }
   } catch (error) {
     console.error("Error marking all notifications as read:", error.message)
     return { success: false, error }

@@ -20,7 +20,8 @@ import {
   BarChart,
 } from "lucide-react"
 
-import { getDoctorIdFromUserId, fetchDoctorAppointments } from "../services/appointmentService"
+// Update imports to use the .js files
+import { getDoctorIdFromUserId, fetchDoctorAppointments } from "../services/appointmentService.js"
 import { fetchDoctorStatistics, fetchRecentActivity } from "../services/dashboardService"
 import AvailabilityManager from "./AvailabilityManager"
 import ProfilePage from "./ProfilePage"
@@ -35,8 +36,9 @@ import NotificationsPanel from "./NotificationPanel"
 import ConnectionStatus from "./ConnectionStatus"
 
 import { useNavigate, useLocation } from "react-router-dom"
-import socketService from "../services/socketService"
-import { saveAppointmentWhenAccepted } from "../services/appointmentService"
+import socketService from "../services/socketService.js"
+import { saveAppointmentWhenAccepted } from "../services/appointmentService.js"
+import { useSocketNotifications } from "../hooks/useSocketNotifications"
 
 const DoctorDashboard = () => {
   const { session, userData, signOut } = UserAuth()
@@ -48,6 +50,7 @@ const DoctorDashboard = () => {
   const [error, setError] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarMinimized, setSidebarMinimized] = useState(false)
+  const { pendingAppointments, removeFromPending } = useSocketNotifications()
 
   const navigate = useNavigate()
   const location = useLocation()
@@ -174,16 +177,22 @@ const DoctorDashboard = () => {
     await signOut()
   }
 
+  // Modified accept handler
   const handleAccept = async (id) => {
     try {
       // Find the appointment in the local state
-      const appointment = appointments.find((appt) => appt.id === id)
+      const appointment =
+        pendingAppointments.find((appt) => appt.id === id) || appointments.find((appt) => appt.id === id)
+
       if (!appointment) {
         setError("Appointment not found")
         return
       }
 
       console.log("Accepting appointment in Dashboard:", appointment)
+
+      // Notify the socket server first
+      socketService.acceptAppointment(id)
 
       // Save to database only when accepted
       const result = await saveAppointmentWhenAccepted({
@@ -196,22 +205,16 @@ const DoctorDashboard = () => {
         console.log("Successfully saved appointment to database:", result.data)
 
         // Update the appointment in the local state
-        setAppointments(
-          appointments.map((appt) =>
-            appt.id === id
-              ? { ...appt, status: "accepted", video_conference_link: result.data.video_conference_link }
-              : appt,
-          ),
-        )
+        setAppointments((prev) => [...prev, result.data])
+
+        // Remove from pending appointments
+        removeFromPending(id)
 
         // Refresh statistics after accepting
         const statsResult = await fetchDoctorStatistics(doctorId)
         if (statsResult.success) {
           setStatistics(statsResult.data)
         }
-
-        // Notify the socket server
-        socketService.acceptAppointment(id)
       } else {
         console.error("Failed to save appointment:", result.error)
         setError("Failed to accept appointment: " + (result.error?.message || "Unknown error"))
@@ -226,13 +229,11 @@ const DoctorDashboard = () => {
   const handleReject = async (id) => {
     console.log("Rejecting appointment with ID:", id)
 
-    // Just update the local state - no database interaction needed
-    setAppointments(
-      appointments.map((appointment) => (appointment.id === id ? { ...appointment, status: "declined" } : appointment)),
-    )
-
     // Notify the socket server
     socketService.declineAppointment(id)
+
+    // Remove from pending appointments
+    removeFromPending(id)
 
     // Refresh statistics
     try {
@@ -461,7 +462,7 @@ const DoctorDashboard = () => {
                 return (
                   <DashboardContent
                     statistics={statistics}
-                    appointments={appointments}
+                    appointments={[...appointments, ...pendingAppointments]}
                     recentActivity={recentActivity}
                     loading={loading}
                     handleAccept={handleAccept}
