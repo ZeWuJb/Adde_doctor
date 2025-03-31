@@ -1,7 +1,6 @@
 "use client"
 import { useState, useEffect, useMemo } from "react"
 import { UserAuth } from "../context/AuthContext"
-// Update imports to use the .js files
 import {
   fetchDoctorAppointments,
   saveAppointmentWhenAccepted,
@@ -24,7 +23,6 @@ const AppointmentsPage = () => {
   const [showFilters, setShowFilters] = useState(false)
   const { pendingAppointments, removeFromPending } = useSocketNotifications()
 
-  // Fetch doctor ID from user session
   useEffect(() => {
     const fetchDoctorId = async () => {
       if (!session?.user?.id) return
@@ -66,7 +64,6 @@ const AppointmentsPage = () => {
     loadAppointments()
   }, [doctorId])
 
-  // Combine database appointments and pending appointments from socket
   const allAppointments = useMemo(() => {
     return [...appointments, ...pendingAppointments]
   }, [appointments, pendingAppointments])
@@ -78,21 +75,15 @@ const AppointmentsPage = () => {
     }
 
     const filtered = allAppointments.filter((appt) => {
-      // Apply search filter
       const matchesSearch = searchTerm
         ? appt.mothers?.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
         : true
-
-      // Apply status filter
       const matchesStatus = statusFilter === "all" ? true : appt.status === statusFilter
-
-      // Apply date filter
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       const appointmentDate = new Date(appt.requested_time)
 
       let matchesDate = true
-      // In your date filter logic
       switch (dateFilter) {
         case "today": {
           const tomorrow = new Date(today)
@@ -126,7 +117,6 @@ const AppointmentsPage = () => {
     setFilteredAppointments(filtered)
   }, [allAppointments, searchTerm, statusFilter, dateFilter])
 
-  // Modified accept handler
   const handleAccept = async (appointment) => {
     try {
       console.log("Accepting appointment:", appointment)
@@ -158,6 +148,7 @@ const AppointmentsPage = () => {
         doctor_id: appointment.doctor_id,
         mother_id: appointment.mother_id,
         requested_time: appointment.requested_time,
+        // Do NOT include the id field here - let the database generate a UUID
       }
 
       console.log("Saving appointment with data:", appointmentData)
@@ -173,7 +164,14 @@ const AppointmentsPage = () => {
         // Remove from pending appointments in the hook's state and localStorage
         removeFromPending(appointment.id)
 
-     } else {
+        // Immediately open the video conference link in a new tab
+        if (result.data.video_conference_link) {
+          console.log("Opening video conference link:", result.data.video_conference_link)
+          window.open(result.data.video_conference_link, "_blank")
+        } else {
+          console.error("No video conference link found in the saved appointment")
+        }
+      } else {
         console.error("Failed to save appointment:", result.error)
         // If database save fails, show error but the socket notification was already sent
         setError("Appointment was accepted but failed to save to database. Please check your connection.")
@@ -184,12 +182,8 @@ const AppointmentsPage = () => {
     }
   }
 
-  // Modified reject handler
   const handleReject = (id) => {
-    // First notify the socket server to inform the patient immediately
     socketService.declineAppointment(id)
-
-    // Remove from pending appointments in the hook's state and localStorage
     removeFromPending(id)
   }
 
@@ -352,12 +346,6 @@ const AppointmentsPage = () => {
                           ? appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)
                           : "Unknown"}
                       </div>
-                    </div>
-                    <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                      Payment:{" "}
-                      {appointment.payment_status
-                        ? appointment.payment_status.charAt(0).toUpperCase() + appointment.payment_status.slice(1)
-                        : "Unknown"}
                     </div>
                   </div>
                 </div>

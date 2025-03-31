@@ -79,26 +79,6 @@ export const updateAppointmentStatus = async (appointmentId, status) => {
   }
 }
 
-// Update appointment payment status
-export const updatePaymentStatus = async (appointmentId, paymentStatus) => {
-  try {
-    const { data, error } = await supabase
-      .from("appointments")
-      .update({
-        payment_status: paymentStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", appointmentId)
-      .select()
-
-    if (error) throw error
-    return { success: true, data: data[0] }
-  } catch (error) {
-    console.error(`Error updating payment status to ${paymentStatus}:`, error.message)
-    return { success: false, error }
-  }
-}
-
 // Fetch doctor availability
 export const fetchDoctorAvailability = async (doctorId) => {
   try {
@@ -107,9 +87,14 @@ export const fetchDoctorAvailability = async (doctorId) => {
     if (error) {
       if (error.code === "PGRST116") {
         // No availability found, return an empty object
-        return { success: true, data: { dates: [] }, recordId: null }
+        return { success: true, data: { availability: { dates: [] } }, recordId: null }
       }
       throw error
+    }
+
+    // If availability exists but doesn't have the dates structure, initialize it
+    if (!data.availability || !data.availability.dates) {
+      data.availability = { dates: [] }
     }
 
     return { success: true, data, recordId: data.id }
@@ -122,13 +107,14 @@ export const fetchDoctorAvailability = async (doctorId) => {
 // Update doctor availability
 export const updateDoctorAvailability = async (doctorId, availabilityData, recordId = null) => {
   try {
+    // Prepare the data for the database - wrap the dates array in an availability object
+    const dbData = {
+      availability: availabilityData,
+    }
+
     if (recordId) {
       // Update existing record
-      const { data, error } = await supabase
-        .from("doctor_availability")
-        .update(availabilityData)
-        .eq("id", recordId)
-        .select()
+      const { data, error } = await supabase.from("doctor_availability").update(dbData).eq("id", recordId).select()
 
       if (error) throw error
       return { success: true, data: data[0] }
@@ -136,7 +122,7 @@ export const updateDoctorAvailability = async (doctorId, availabilityData, recor
       // Insert new record
       const { data, error } = await supabase
         .from("doctor_availability")
-        .insert({ doctor_id: doctorId, ...availabilityData })
+        .insert({ doctor_id: doctorId, ...dbData })
         .select()
 
       if (error) throw error
@@ -158,7 +144,7 @@ export const addAvailabilitySlot = async (doctorId, date, slot) => {
     }
 
     // Create a copy of the current availability
-    const updatedAvailability = { ...currentAvailability }
+    const updatedAvailability = { ...currentAvailability.availability }
 
     // Ensure dates array exists
     if (!updatedAvailability.dates) {
@@ -207,7 +193,7 @@ export const deleteAvailabilitySlot = async (doctorId, date, slot) => {
     }
 
     // Create a copy of the current availability
-    const updatedAvailability = { ...currentAvailability }
+    const updatedAvailability = { ...currentAvailability.availability }
 
     // Find the date index
     const dateIndex = updatedAvailability.dates.findIndex((d) => d.date === date)
@@ -247,7 +233,7 @@ export const checkAvailability = async (doctorId, date, slot) => {
     }
 
     // Find the date in availability
-    const dateEntry = data.dates.find((d) => d.date === date)
+    const dateEntry = data.availability.dates.find((d) => d.date === date)
     if (!dateEntry) {
       return { success: true, available: false }
     }
@@ -367,9 +353,11 @@ export const saveAppointmentWhenAccepted = async (appointmentData) => {
       return { success: false, error: { message: "Missing requested_time" } }
     }
 
-    // Generate video conference link
-    const videoLink = `https://meet.jit.si/${Date.now()}`
+    // Generate video conference link with a unique identifier (not using the appointment ID)
+    const meetingId = `meeting_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
+    const videoLink = `https://meet.jit.si/${meetingId}`
 
+    // IMPORTANT: Do NOT include the id field - let Supabase generate a UUID
     // Insert new appointment into the database
     const { data, error } = await supabase
       .from("appointments")

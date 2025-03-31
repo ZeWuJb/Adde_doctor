@@ -257,11 +257,10 @@ class SocketService {
     console.log("Emitting accept_appointment event for ID:", appointmentId)
 
     try {
+      // Just emit the event with the appointmentId
+      // Don't worry about the database ID format here
       this.socket.emit("accept_appointment", { appointmentId })
-
-      // We don't need to update the database for socket-generated appointments
-      // The database update will happen in saveAppointmentWhenAccepted
-
+      console.log("Successfully emitted accept_appointment event")
       return true
     } catch (error) {
       console.error("Error accepting appointment:", error)
@@ -304,7 +303,6 @@ class SocketService {
     if (this.socket) {
       console.log("Disconnecting socket")
       this.socket.removeAllListeners() // Remove all event listeners
-      this.socket.disconnect()
       this.socket = null
       this.connected = false
     }

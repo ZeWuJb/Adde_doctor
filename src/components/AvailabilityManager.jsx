@@ -69,7 +69,8 @@ const AvailabilityManager = () => {
         const result = await fetchDoctorAvailability(doctorId)
 
         if (result.success) {
-          setAvailabilityData(result.data || { dates: [] })
+          // Make sure we're using the correct data structure
+          setAvailabilityData(result.data.availability || { dates: [] })
         } else {
           setError("Failed to load availability slots")
         }
@@ -212,12 +213,7 @@ const AvailabilityManager = () => {
       }
 
       // Create a copy of the current availability
-      const updatedAvailability = { ...currentAvailability }
-
-      // Ensure dates array exists
-      if (!updatedAvailability.dates) {
-        updatedAvailability.dates = []
-      }
+      const updatedAvailability = { dates: [...(currentAvailability.availability?.dates || [])] }
 
       // For each date and time slot, add to availability
       let addedSlots = 0
@@ -307,7 +303,7 @@ const AvailabilityManager = () => {
         // Refresh the availability data
         const refreshResult = await fetchDoctorAvailability(doctorId)
         if (refreshResult.success) {
-          setAvailabilityData(refreshResult.data)
+          setAvailabilityData(refreshResult.data.availability || { dates: [] })
         }
       } else {
         setError(result.error?.message || "Failed to delete availability slot")
