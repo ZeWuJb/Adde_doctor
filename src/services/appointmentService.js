@@ -58,7 +58,9 @@ export const updateAppointmentStatus = async (appointmentId, status) => {
     // If accepting, generate a video conference link
     let videoLink = null
     if (status === "accepted") {
-      videoLink = `https://meet.jit.si/${appointmentId}`
+      // Generate a unique meeting ID
+      const meetingId = `meeting_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
+      videoLink = `https://meet.jit.si/${meetingId}`
     }
 
     const { data, error } = await supabase
@@ -357,7 +359,7 @@ export const saveAppointmentWhenAccepted = async (appointmentData) => {
     const meetingId = `meeting_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
     const videoLink = `https://meet.jit.si/${meetingId}`
 
-    // IMPORTANT: Do NOT include the id field - let Supabase generate a UUID
+    // Important: Do NOT include the id field - let Supabase generate a UUID
     // Insert new appointment into the database
     const { data, error } = await supabase
       .from("appointments")

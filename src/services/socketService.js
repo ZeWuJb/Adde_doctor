@@ -303,6 +303,7 @@ class SocketService {
     if (this.socket) {
       console.log("Disconnecting socket")
       this.socket.removeAllListeners() // Remove all event listeners
+      this.socket.disconnect()
       this.socket = null
       this.connected = false
     }
