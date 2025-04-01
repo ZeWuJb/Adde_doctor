@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from "react"
 import { UserAuth } from "../context/AuthContext"
-import { getDoctorIdFromUserId } from "../services/appointmentService"
-import socketService from "../services/socketService"
+import {
+  getDoctorIdFromUserId,
+  fetchTemporaryAppointments,
+  subscribeToTemporaryAppointments,
+} from "../services/appointmentService"
 
 // Helper functions for localStorage
 const STORAGE_KEY = "caresync_pending_appointments"
@@ -42,7 +45,7 @@ const loadPendingAppointmentsFromStorage = (doctorId) => {
 
 export const useSocketNotifications = () => {
   const { session } = UserAuth()
-  const [connected, setConnected] = useState(false)
+  const [connected] = useState(true) // Always connected with Supabase
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [pendingAppointments, setPendingAppointments] = useState([])
@@ -80,130 +83,77 @@ export const useSocketNotifications = () => {
     }
   }, [doctorId, pendingAppointments])
 
-  // This effect initializes the socket connection and sets up event handlers
+  // This effect fetches temporary appointments and sets up real-time subscription
   useEffect(() => {
     if (!doctorId) return
 
-    const initializeSocket = async () => {
+    const fetchTempAppointments = async () => {
       try {
-        console.log("Initializing socket with doctor ID:", doctorId)
-
-        // Initialize socket connection
-        const initialized = await socketService.initialize(doctorId)
-
-        if (initialized) {
-          // Set up connection status handler
-          socketService.onConnectionChange((status) => {
-            console.log("Socket connection status changed:", status)
-            setConnected(status)
-          })
-
-          // Set up new appointment handler
-          socketService.onNewAppointment((data) => {
-            console.log("New appointment received:", data)
-
-            // Add to notifications
-            const newNotification = {
-              id: Date.now().toString(),
-              message: `New appointment request from ${data.mother_name || "a patient"}`,
-              timestamp: new Date().toISOString(),
-              read: false,
-            }
-
-            setNotifications((prev) => [newNotification, ...prev])
-            setUnreadCount((prev) => prev + 1)
-
-            // Add to pending appointments (in memory and localStorage)
-            setPendingAppointments((prev) => {
-              // Check if we already have this appointment to avoid duplicates
-              const exists = prev.some((app) => app.id === data.appointmentId)
-              if (exists) {
-                return prev
-              }
-
-              const newAppointment = {
-                id: data.appointmentId,
-                appointmentId: data.appointmentId,
-                doctor_id: data.doctor_id,
-                mother_id: data.mother_id,
-                mother_name: data.mother_name || "Unknown Patient",
-                requested_time: data.requested_time,
-                profile_url: data.profile_url || null,
-                status: "pending",
-                mothers: {
-                  full_name: data.mother_name || "Unknown Patient",
-                  profile_url: data.profile_url || "/placeholder.svg",
-                },
-              }
-
-              const updatedAppointments = [...prev, newAppointment]
-
-              // Save to localStorage
-              savePendingAppointmentsToStorage(doctorId, updatedAppointments)
-
-              return updatedAppointments
-            })
-          })
-
-          // Set up appointment accepted handler
-          socketService.onAppointmentAccepted((data) => {
-            console.log("Appointment accepted:", data)
-            const newNotification = {
-              id: Date.now().toString(),
-              message: `Appointment with ${data.mother_name || "a patient"} was accepted`,
-              timestamp: new Date().toISOString(),
-              read: false,
-            }
-
-            setNotifications((prev) => [newNotification, ...prev])
-            setUnreadCount((prev) => prev + 1)
-
-            // Remove from pending appointments
-            setPendingAppointments((prev) => {
-              const updated = prev.filter((app) => app.appointmentId !== data.appointmentId)
-              savePendingAppointmentsToStorage(doctorId, updated)
-              return updated
-            })
-          })
-
-          // Set up appointment declined handler
-          socketService.onAppointmentDeclined((data) => {
-            console.log("Appointment declined:", data)
-            const newNotification = {
-              id: Date.now().toString(),
-              message: `Appointment with ${data.mother_name || "a patient"} was declined`,
-              timestamp: new Date().toISOString(),
-              read: false,
-            }
-
-            setNotifications((prev) => [newNotification, ...prev])
-            setUnreadCount((prev) => prev + 1)
-
-            // Remove from pending appointments
-            setPendingAppointments((prev) => {
-              const updated = prev.filter((app) => app.appointmentId !== data.appointmentId)
-              savePendingAppointmentsToStorage(doctorId, updated)
-              return updated
-            })
-          })
+        const result = await fetchTemporaryAppointments(doctorId)
+        if (result.success) {
+          setPendingAppointments(result.data)
         }
       } catch (err) {
-        console.error("Error in socket connection:", err)
+        console.error("Error fetching temporary appointments:", err)
       }
     }
 
-    initializeSocket()
+    fetchTempAppointments()
 
+    // Set up real-time subscription for temporary appointments
+    subscribeToTemporaryAppointments(
+      doctorId,
+      // On insert
+      (newAppointment) => {
+        console.log("New temporary appointment received:", newAppointment)
+
+        // Add to notifications
+        const newNotification = {
+          id: Date.now().toString(),
+          message: `New appointment request from ${newAppointment.mothers?.full_name || "a patient"}`,
+          timestamp: new Date().toISOString(),
+          read: false,
+        }
+
+        setNotifications((prev) => [newNotification, ...prev])
+        setUnreadCount((prev) => prev + 1)
+
+        // Add to pending appointments
+        setPendingAppointments((prev) => {
+          // Check if we already have this appointment to avoid duplicates
+          const exists = prev.some((app) => app.id === newAppointment.id)
+          if (exists) {
+            return prev
+          }
+
+          const updatedAppointments = [...prev, newAppointment]
+          savePendingAppointmentsToStorage(doctorId, updatedAppointments)
+          return updatedAppointments
+        })
+      },
+      // On delete
+      (appointmentId) => {
+        console.log("Temporary appointment deleted:", appointmentId)
+
+        // Remove from pending appointments
+        setPendingAppointments((prev) => {
+          const updated = prev.filter((app) => app.id !== appointmentId)
+          savePendingAppointmentsToStorage(doctorId, updated)
+          return updated
+        })
+      },
+    )
+
+    // No need to store or clean up subscription as it's handled in the service
     return () => {
-      // Disconnect socket
-      socketService.disconnect()
+      // Clean up handled by the service
     }
   }, [doctorId])
 
   // Function to remove an appointment from pending list (used when accepting/declining)
   const removeFromPending = (appointmentId) => {
     setPendingAppointments((prev) => {
-      const updated = prev.filter((app) => app.appointmentId !== appointmentId)
+      const updated = prev.filter((app) => app.id !== appointmentId && app.appointmentId !== appointmentId)
       savePendingAppointmentsToStorage(doctorId, updated)
       return updated
     })

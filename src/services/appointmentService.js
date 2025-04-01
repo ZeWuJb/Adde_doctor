@@ -45,16 +45,167 @@ export const fetchDoctorAppointments = async (doctorId) => {
   }
 }
 
+// Fetch temporary appointments for a specific doctor
+export const fetchTemporaryAppointments = async (doctorId) => {
+  try {
+    const { data, error } = await supabase
+      .from("temporary_appointments")
+      .select(`
+        id, 
+        doctor_id,
+        mother_id,
+        requested_time, 
+        created_at,
+        mothers:mother_id (
+          user_id, 
+          full_name, 
+          profile_url
+        )
+      `)
+      .eq("doctor_id", doctorId)
+      .order("created_at", { ascending: false })
+
+    if (error) throw error
+
+    // Format the data to match the structure expected by the UI
+    const formattedData = data.map((appointment) => ({
+      ...appointment,
+      status: "pending", // All temporary appointments are pending
+      appointmentId: appointment.id, // For compatibility with existing code
+    }))
+
+    return { success: true, data: formattedData }
+  } catch (error) {
+    console.error("Error fetching temporary appointments:", error.message)
+    return { success: false, error }
+  }
+}
+
+// Accept a temporary appointment
+export const acceptTemporaryAppointment = async (appointmentId) => {
+  try {
+    // First, get the temporary appointment details
+    const { data: tempAppointment, error: fetchError } = await supabase
+      .from("temporary_appointments")
+      .select("*")
+      .eq("id", appointmentId)
+      .single()
+
+    if (fetchError) throw fetchError
+    if (!tempAppointment) throw new Error("Temporary appointment not found")
+
+    // Generate a video conference link
+    const meetingId = `meeting_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
+    const videoLink = `https://meet.jit.si/${meetingId}`
+
+    // Create a permanent appointment
+    const { data: newAppointment, error: insertError } = await supabase
+      .from("appointments")
+      .insert({
+        doctor_id: tempAppointment.doctor_id,
+        mother_id: tempAppointment.mother_id,
+        requested_time: tempAppointment.requested_time,
+        status: "accepted",
+        payment_status: "unpaid",
+        video_conference_link: videoLink,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+
+    if (insertError) throw insertError
+
+    // Delete the temporary appointment
+    const { error: deleteError } = await supabase.from("temporary_appointments").delete().eq("id", appointmentId)
+
+    if (deleteError) throw deleteError
+
+    // Increment the consultation count for the doctor
+    try {
+      const { data: doctorData, error: doctorError } = await supabase
+        .from("doctors")
+        .select("consultations_given")
+        .eq("id", tempAppointment.doctor_id)
+        .single()
+
+      if (!doctorError && doctorData) {
+        const currentCount = doctorData.consultations_given || 0
+        await supabase
+          .from("doctors")
+          .update({ consultations_given: currentCount + 1 })
+          .eq("id", tempAppointment.doctor_id)
+      }
+    } catch (err) {
+      console.warn("Could not update consultation count:", err.message)
+      // Don't fail the whole operation if just this part fails
+    }
+
+    return { success: true, data: newAppointment[0] }
+  } catch (error) {
+    console.error("Error accepting temporary appointment:", error.message)
+    return { success: false, error }
+  }
+}
+
+// Reject a temporary appointment
+export const rejectTemporaryAppointment = async (appointmentId) => {
+  try {
+    // Delete the temporary appointment
+    const { error } = await supabase.from("temporary_appointments").delete().eq("id", appointmentId)
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error rejecting temporary appointment:", error.message)
+    return { success: false, error }
+  }
+}
+
+// Set up real-time subscription for temporary appointments
+export const subscribeToTemporaryAppointments = (doctorId, onInsert, onDelete) => {
+  return supabase
+    .channel("temporary-appointments-changes")
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "temporary_appointments",
+        filter: `doctor_id=eq.${doctorId}`,
+      },
+      (payload) => {
+        console.log("New temporary appointment:", payload)
+        if (onInsert) {
+          // Format the data to match the structure expected by the UI
+          const appointment = {
+            ...payload.new,
+            status: "pending",
+            appointmentId: payload.new.id,
+          }
+          onInsert(appointment)
+        }
+      },
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "DELETE",
+        schema: "public",
+        table: "temporary_appointments",
+        filter: `doctor_id=eq.${doctorId}`,
+      },
+      (payload) => {
+        console.log("Temporary appointment deleted:", payload)
+        if (onDelete) onDelete(payload.old.id)
+      },
+    )
+    .subscribe()
+}
+
 // Update appointment status (accept/reject)
 export const updateAppointmentStatus = async (appointmentId, status) => {
   try {
-    // Check if this is a socket-generated ID (timestamp) rather than a UUID
-    // If it's a timestamp ID, we don't need to update the database
-    if (appointmentId && !appointmentId.includes("-")) {
-      console.log(`Skipping database update for non-UUID appointment ID: ${appointmentId}`)
-      return { success: true, data: { id: appointmentId, status } }
-    }
-
     // If accepting, generate a video conference link
     let videoLink = null
     if (status === "accepted") {
@@ -285,6 +436,38 @@ export const createAppointment = async (appointmentData) => {
   }
 }
 
+// Create a temporary appointment request
+export const createTemporaryAppointment = async (appointmentData) => {
+  try {
+    const { doctor_id, mother_id, requested_time } = appointmentData
+
+    // Validate required fields
+    if (!doctor_id || !mother_id || !requested_time) {
+      return {
+        success: false,
+        error: { message: "Missing required fields: doctor_id, mother_id, and requested_time are required" },
+      }
+    }
+
+    // Format the data for insertion
+    const formattedData = {
+      doctor_id,
+      mother_id,
+      requested_time,
+      created_at: new Date().toISOString(),
+    }
+
+    // Insert the temporary appointment
+    const { data, error } = await supabase.from("temporary_appointments").insert(formattedData).select()
+
+    if (error) throw error
+    return { success: true, data: data[0] }
+  } catch (error) {
+    console.error("Error creating temporary appointment:", error.message)
+    return { success: false, error }
+  }
+}
+
 // Get appointments for a mother
 export const fetchMotherAppointments = async (motherId) => {
   try {
@@ -314,6 +497,116 @@ export const fetchMotherAppointments = async (motherId) => {
     console.error("Error fetching mother appointments:", error.message)
     return { success: false, error }
   }
+}
+
+// Get temporary appointments for a mother
+export const fetchMotherTemporaryAppointments = async (motherId) => {
+  try {
+    const { data, error } = await supabase
+      .from("temporary_appointments")
+      .select(`
+        id, 
+        doctor_id,
+        requested_time, 
+        created_at,
+        doctors:doctor_id (
+          id, 
+          full_name, 
+          speciality,
+          profile_url
+        )
+      `)
+      .eq("mother_id", motherId)
+      .order("created_at", { ascending: false })
+
+    if (error) throw error
+
+    // Format the data to match the structure expected by the UI
+    const formattedData = data.map((appointment) => ({
+      ...appointment,
+      status: "pending", // All temporary appointments are pending
+      appointmentId: appointment.id, // For compatibility with existing code
+    }))
+
+    return { success: true, data: formattedData }
+  } catch (error) {
+    console.error("Error fetching temporary appointments:", error.message)
+    return { success: false, error }
+  }
+}
+
+// Set up real-time subscription for mother's temporary appointments
+export const subscribeToMotherTemporaryAppointments = (motherId, onInsert, onDelete) => {
+  return supabase
+    .channel("mother-temp-appointments-changes")
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "temporary_appointments",
+        filter: `mother_id=eq.${motherId}`,
+      },
+      (payload) => {
+        console.log("New temporary appointment for mother:", payload)
+        if (onInsert) {
+          // Format the data to match the structure expected by the UI
+          const appointment = {
+            ...payload.new,
+            status: "pending",
+            appointmentId: payload.new.id,
+          }
+          onInsert(appointment)
+        }
+      },
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "DELETE",
+        schema: "public",
+        table: "temporary_appointments",
+        filter: `mother_id=eq.${motherId}`,
+      },
+      (payload) => {
+        console.log("Temporary appointment deleted for mother:", payload)
+        if (onDelete) onDelete(payload.old.id)
+      },
+    )
+    .subscribe()
+}
+
+// Set up real-time subscription for mother's appointments
+export const subscribeToMotherAppointments = (motherId, onInsert, onUpdate) => {
+  return supabase
+    .channel("mother-appointments-changes")
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "appointments",
+        filter: `mother_id=eq.${motherId}`,
+      },
+      (payload) => {
+        console.log("New appointment for mother:", payload)
+        if (onInsert) onInsert(payload.new)
+      },
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "appointments",
+        filter: `mother_id=eq.${motherId}`,
+      },
+      (payload) => {
+        console.log("Appointment updated for mother:", payload)
+        if (onUpdate) onUpdate(payload.new)
+      },
+    )
+    .subscribe()
 }
 
 // Cancel an appointment

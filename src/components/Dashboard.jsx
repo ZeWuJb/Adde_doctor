@@ -20,8 +20,12 @@ import {
   BarChart,
 } from "lucide-react"
 
-// Update imports to use the .js files
-import { getDoctorIdFromUserId, fetchDoctorAppointments } from "../services/appointmentService.js"
+import {
+  getDoctorIdFromUserId,
+  fetchDoctorAppointments,
+  acceptTemporaryAppointment,
+  rejectTemporaryAppointment,
+} from "../services/appointmentService.js"
 import { fetchDoctorStatistics, fetchRecentActivity } from "../services/dashboardService"
 import AvailabilityManager from "./AvailabilityManager"
 import ProfilePage from "./ProfilePage"
@@ -36,8 +40,6 @@ import NotificationsPanel from "./NotificationPanel"
 import ConnectionStatus from "./ConnectionStatus"
 
 import { useNavigate, useLocation } from "react-router-dom"
-import socketService from "../services/socketService.js"
-import { saveAppointmentWhenAccepted } from "../services/appointmentService.js"
 import { useSocketNotifications } from "../hooks/useSocketNotifications"
 
 const DoctorDashboard = () => {
@@ -80,23 +82,6 @@ const DoctorDashboard = () => {
       fetchDoctorId()
     }
   }, [session, userData])
-
-  // Add this effect after the doctorId is set
-  useEffect(() => {
-    if (doctorId) {
-      // Initialize socket connection with the doctor's ID
-      socketService.initialize(doctorId).then((success) => {
-        if (!success) {
-          console.error("Failed to initialize socket connection")
-        }
-      })
-    }
-
-    return () => {
-      // Disconnect socket when component unmounts
-      socketService.disconnect()
-    }
-  }, [doctorId])
 
   // Then, fetch data once we have the doctor ID
   useEffect(() => {
@@ -181,8 +166,7 @@ const DoctorDashboard = () => {
   const handleAccept = async (id) => {
     try {
       // Find the appointment in the local state
-      const appointment =
-        pendingAppointments.find((appt) => appt.id === id) || appointments.find((appt) => appt.id === id)
+      const appointment = pendingAppointments.find((appt) => appt.id === id || appt.appointmentId === id)
 
       if (!appointment) {
         setError("Appointment not found")
@@ -191,15 +175,8 @@ const DoctorDashboard = () => {
 
       console.log("Accepting appointment in Dashboard:", appointment)
 
-      // Notify the socket server first
-      socketService.acceptAppointment(id)
-
-      // Save to database only when accepted
-      const result = await saveAppointmentWhenAccepted({
-        doctor_id: appointment.doctor_id,
-        mother_id: appointment.mother_id,
-        requested_time: appointment.requested_time,
-      })
+      // Accept the temporary appointment
+      const result = await acceptTemporaryAppointment(id)
 
       if (result.success) {
         console.log("Successfully saved appointment to database:", result.data)
@@ -215,6 +192,11 @@ const DoctorDashboard = () => {
         if (statsResult.success) {
           setStatistics(statsResult.data)
         }
+
+        // Open video conference link in a new tab
+        if (result.data.video_conference_link) {
+          window.open(result.data.video_conference_link, "_blank")
+        }
       } else {
         console.error("Failed to save appointment:", result.error)
         setError("Failed to accept appointment: " + (result.error?.message || "Unknown error"))
@@ -229,20 +211,25 @@ const DoctorDashboard = () => {
   const handleReject = async (id) => {
     console.log("Rejecting appointment with ID:", id)
 
-    // Notify the socket server
-    socketService.declineAppointment(id)
-
-    // Remove from pending appointments
-    removeFromPending(id)
-
-    // Refresh statistics
     try {
-      const statsResult = await fetchDoctorStatistics(doctorId)
-      if (statsResult.success) {
-        setStatistics(statsResult.data)
+      // Reject the temporary appointment
+      const result = await rejectTemporaryAppointment(id)
+
+      if (result.success) {
+        // Remove from pending appointments
+        removeFromPending(id)
+
+        // Refresh statistics
+        const statsResult = await fetchDoctorStatistics(doctorId)
+        if (statsResult.success) {
+          setStatistics(statsResult.data)
+        }
+      } else {
+        setError("Failed to reject appointment: " + (result.error?.message || "Unknown error"))
       }
     } catch (err) {
-      console.error("Error refreshing statistics:", err.message)
+      console.error("Error rejecting appointment:", err.message)
+      setError("An unexpected error occurred. Please try again.")
     }
   }
 

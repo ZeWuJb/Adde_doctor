@@ -1,62 +1,63 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Wifi, WifiOff } from "lucide-react"
-import socketService from "../services/socketService"
+import { useState, useEffect } from "react"
+import { WifiOff } from "lucide-react"
+import { supabase } from "../supabaseClient"
 
 const ConnectionStatus = () => {
-  const [connected, setConnected] = useState(false)
-  const [showStatus, setShowStatus] = useState(true)
-  const [fadeOut, setFadeOut] = useState(false)
+  const [isConnected, setIsConnected] = useState(true)
+  const [lastChecked, setLastChecked] = useState(new Date())
 
   useEffect(() => {
-    // Register for connection status changes
-    socketService.onConnectionChange((status) => {
-      setConnected(status)
+    // Check Supabase connection
+    const checkConnection = async () => {
+      try {
+        // Simple query to check if we can connect to Supabase
+        const { error } = await supabase.from("doctors").select("count", { count: "exact", head: true }).limit(1)
 
-      // Show the status whenever it changes
-      setShowStatus(true)
-      setFadeOut(false)
-
-      // After 5 seconds, start the fade out
-      const fadeTimer = setTimeout(() => {
-        setFadeOut(true)
-      }, 5000)
-
-      // After fade completes, hide the component
-      const hideTimer = setTimeout(() => {
-        setShowStatus(false)
-      }, 5500) // 5s delay + 0.5s transition
-
-      return () => {
-        clearTimeout(fadeTimer)
-        clearTimeout(hideTimer)
+        if (error) {
+          console.error("Connection check failed:", error)
+          setIsConnected(false)
+        } else {
+          setIsConnected(true)
+        }
+      } catch (err) {
+        console.error("Connection check error:", err)
+        setIsConnected(false)
       }
-    })
 
-    // Initial status check
-    setConnected(socketService.connected)
+      setLastChecked(new Date())
+    }
+
+    // Check connection immediately
+    checkConnection()
+
+    // Then check every 30 seconds
+    const interval = setInterval(checkConnection, 30000)
+
+    // Also check when online/offline status changes
+    const handleOnline = () => setIsConnected(true)
+    const handleOffline = () => setIsConnected(false)
+
+    window.addEventListener("online", handleOnline)
+    window.addEventListener("offline", handleOffline)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener("online", handleOnline)
+      window.removeEventListener("offline", handleOffline)
+    }
   }, [])
 
-  if (!showStatus) return null
+  if (isConnected) return null // Don't show anything when connected
 
   return (
-    <div
-      className={`fixed bottom-4 right-4 flex items-center gap-2 p-3 rounded-lg shadow-md transition-opacity duration-500 ${
-        fadeOut ? "opacity-0" : "opacity-100"
-      } ${connected ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
-    >
-      {connected ? (
-        <>
-          <Wifi size={16} />
-          <span className="text-sm font-medium">Connected to server</span>
-        </>
-      ) : (
-        <>
-          <WifiOff size={16} />
-          <span className="text-sm font-medium">Disconnected</span>
-        </>
-      )}
+    <div className="fixed bottom-4 right-4 bg-red-50 text-red-700 px-4 py-2 rounded-lg shadow-md flex items-center">
+      <WifiOff className="h-5 w-5 mr-2" />
+      <div>
+        <p className="font-medium text-sm">Connection lost</p>
+        <p className="text-xs">Last checked: {lastChecked.toLocaleTimeString()}</p>
+      </div>
     </div>
   )
 }

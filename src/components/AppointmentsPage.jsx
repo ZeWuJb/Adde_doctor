@@ -3,12 +3,12 @@ import { useState, useEffect, useMemo } from "react"
 import { UserAuth } from "../context/AuthContext"
 import {
   fetchDoctorAppointments,
-  saveAppointmentWhenAccepted,
+  acceptTemporaryAppointment,
+  rejectTemporaryAppointment,
   getDoctorIdFromUserId,
 } from "../services/appointmentService"
 import { Calendar, Search, Filter, ChevronDown, Video, Check, X, AlertCircle } from "lucide-react"
 import { useSocketNotifications } from "../hooks/useSocketNotifications"
-import socketService from "../services/socketService"
 
 const AppointmentsPage = () => {
   const { session } = UserAuth()
@@ -140,29 +140,17 @@ const AppointmentsPage = () => {
         return
       }
 
-      // First notify the socket server to inform the patient immediately
-      socketService.acceptAppointment(appointment.id)
-
-      // Then save to database - this is now the ONLY place where appointments are saved
-      const appointmentData = {
-        doctor_id: appointment.doctor_id,
-        mother_id: appointment.mother_id,
-        requested_time: appointment.requested_time,
-        // Do NOT include the id field here - let the database generate a UUID
-      }
-
-      console.log("Saving appointment with data:", appointmentData)
-
-      const result = await saveAppointmentWhenAccepted(appointmentData)
+      // Accept the temporary appointment
+      const result = await acceptTemporaryAppointment(appointment.id || appointment.appointmentId)
 
       if (result.success) {
-        console.log("Successfully saved appointment:", result.data)
+        console.log("Successfully accepted appointment:", result.data)
 
         // Add to database appointments
         setAppointments((prev) => [...prev, result.data])
 
         // Remove from pending appointments in the hook's state and localStorage
-        removeFromPending(appointment.id)
+        removeFromPending(appointment.id || appointment.appointmentId)
 
         // Immediately open the video conference link in a new tab
         if (result.data.video_conference_link) {
@@ -172,9 +160,9 @@ const AppointmentsPage = () => {
           console.error("No video conference link found in the saved appointment")
         }
       } else {
-        console.error("Failed to save appointment:", result.error)
-        // If database save fails, show error but the socket notification was already sent
-        setError("Appointment was accepted but failed to save to database. Please check your connection.")
+        console.error("Failed to accept appointment:", result.error)
+        // If database save fails, show error
+        setError("Failed to accept appointment. Please check your connection.")
       }
     } catch (err) {
       console.error("Error in handleAccept:", err)
@@ -182,9 +170,18 @@ const AppointmentsPage = () => {
     }
   }
 
-  const handleReject = (id) => {
-    socketService.declineAppointment(id)
-    removeFromPending(id)
+  const handleReject = async (id) => {
+    try {
+      const result = await rejectTemporaryAppointment(id)
+      if (result.success) {
+        removeFromPending(id)
+      } else {
+        setError("Failed to reject appointment. Please try again.")
+      }
+    } catch (err) {
+      console.error("Error rejecting appointment:", err)
+      setError("An error occurred while rejecting the appointment")
+    }
   }
 
   const joinMeeting = (link) => {
@@ -287,7 +284,7 @@ const AppointmentsPage = () => {
         <div className="bg-white shadow overflow-hidden sm:rounded-md">
           <ul className="divide-y divide-gray-200">
             {filteredAppointments.map((appointment) => (
-              <li key={appointment.id}>
+              <li key={appointment.id || appointment.appointmentId}>
                 <div className="px-4 py-4 sm:px-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
@@ -318,7 +315,7 @@ const AppointmentsPage = () => {
                             Accept
                           </button>
                           <button
-                            onClick={() => handleReject(appointment.id)}
+                            onClick={() => handleReject(appointment.id || appointment.appointmentId)}
                             className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-5 font-medium rounded-md text-white bg-red-600 hover:bg-red-500 focus:outline-none focus:border-red-700 focus:shadow-outline-red active:bg-red-700 transition ease-in-out duration-150"
                           >
                             <X className="h-4 w-4 mr-1" />
