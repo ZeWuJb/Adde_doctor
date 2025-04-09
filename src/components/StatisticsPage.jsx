@@ -262,13 +262,15 @@ const StatisticsPage = () => {
                 <div className="flex items-center mb-4">
                   <div className="h-12 w-12 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
                     <img
-                      src={statistics.nextAppointment.mothers.profile_url || "/placeholder.svg?height=48&width=48"}
+                      src={statistics.nextAppointment?.mothers?.profile_url || "/placeholder.svg?height=48&width=48"}
                       alt="Patient"
                       className="h-full w-full object-cover"
                     />
                   </div>
                   <div className="ml-4">
-                    <p className="font-medium text-gray-900">{statistics.nextAppointment.mothers.full_name}</p>
+                    <p className="font-medium text-gray-900">
+                      {statistics.nextAppointment?.mothers?.full_name || "Unknown Patient"}
+                    </p>
                     <p className="text-sm text-gray-500">
                       {formatDate(statistics.nextAppointment.requested_time)} at{" "}
                       {formatTime(statistics.nextAppointment.requested_time)}
@@ -314,14 +316,16 @@ const StatisticsPage = () => {
                       <div className="flex items-start">
                         <div className="h-10 w-10 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
                           <img
-                            src={activity.mothers.profile_url || "/placeholder.svg?height=40&width=40"}
+                            src={activity?.mothers?.profile_url || "/placeholder.svg?height=40&width=40"}
                             alt="Patient"
                             className="h-full w-full object-cover"
                           />
                         </div>
                         <div className="ml-4 flex-1">
                           <div className="flex justify-between">
-                            <p className="font-medium text-gray-900">{activity.mothers.full_name}</p>
+                            <p className="font-medium text-gray-900">
+                              {activity?.mothers?.full_name || "Unknown Patient"}
+                            </p>
                             <p className="text-sm text-gray-500">{getTimeAgo(activity.updated_at)}</p>
                           </div>
                           <p className="text-sm text-gray-600 mt-1">

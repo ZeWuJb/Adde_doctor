@@ -4,7 +4,13 @@ import Signup from "./components/Signup"
 import Signin from "./components/Signin"
 import Dashboard from "./components/Dashboard"
 import PrivateRoute from "./components/PrivateRoute"
-import AdminDashboard from "./components/AdminDashboard"
+import AdminDashboard from "./admin/AdminDashboard"
+import DoctorsPage from "./admin/pages/DoctorsPage" 
+import AppointmentsPage from "./admin/pages/AppointmentsPage"
+import AnalyticsPage from "./admin/pages/DoctorsPage" 
+import SettingsPage from "./admin/pages/SettingsPage"
+  
+
 
 export const router = createBrowserRouter([
   { path: "/", element: <App /> },
@@ -24,69 +30,10 @@ export const router = createBrowserRouter([
       { path: "settings", element: <Dashboard /> },
       { path: "help", element: <Dashboard /> },
       { path: "admin-dashboard", element: <AdminDashboard /> },
+      { path: "admin/doctors", element: <DoctorsPage /> },
+      { path: "admin/appointments", element: <AppointmentsPage /> },
+      { path: "admin/analytics", element: <AnalyticsPage /> },
+      { path: "admin/settings", element: <SettingsPage /> },
     ],
   },
 ])
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// import { createBrowserRouter } from "react-router-dom";
-// import App from "./App";
-// import Signup from "./components/Signup";
-// import Signin from "./components/Signin";
-// import Dashboard from "./components/Dashboard";
-// //import PrivateRoute from "./components/PrivateRoute";
-// import AdminDashboard from "./components/AdminDashboard";
-
-// export const router = createBrowserRouter([
-//     { path: "/", element: <App /> },
-//     { path: "/signup", element: <Signup /> },
-//     { path: "/signin", element: <Signin /> },
-//     { path: "/dashboard", element: (
-//         //<PrivateRoute>
-//             <Dashboard />
-//        // </PrivateRoute>
-//     ) },
-//     {
-//         path: "/admin-dashboard",
-//         element: (
-//          // <PrivateRoute>
-//             <AdminDashboard />
-//          // </PrivateRoute>
-//         ),
-//       },
-// ]);
