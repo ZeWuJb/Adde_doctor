@@ -7,7 +7,7 @@ import PrivateRoute from "./components/PrivateRoute"
 import AdminDashboard from "./admin/AdminDashboard"
 import DoctorsPage from "./admin/pages/DoctorsPage" 
 import AppointmentsPage from "./admin/pages/AppointmentsPage"
-import AnalyticsPage from "./admin/pages/DoctorsPage" 
+import DiaryFormPage from "./admin/pages/AnalysticsPage" 
 import SettingsPage from "./admin/pages/SettingsPage"
   
 
@@ -32,7 +32,7 @@ export const router = createBrowserRouter([
       { path: "admin-dashboard", element: <AdminDashboard /> },
       { path: "admin/doctors", element: <DoctorsPage /> },
       { path: "admin/appointments", element: <AppointmentsPage /> },
-      { path: "admin/analytics", element: <AnalyticsPage /> },
+      { path: "admin/analytics", element: <DiaryFormPage /> },
       { path: "admin/settings", element: <SettingsPage /> },
     ],
   },
