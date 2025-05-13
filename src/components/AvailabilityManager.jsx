@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { UserAuth } from "../context/AuthContext"
 import {
   getDoctorIdFromUserId,
@@ -8,7 +8,21 @@ import {
   deleteAvailabilitySlot,
   updateDoctorAvailability,
 } from "../services/appointmentService"
-import { Calendar, Clock, Plus, Trash2, AlertCircle, Check, Info, RefreshCw } from "lucide-react"
+import {
+  Calendar,
+  Clock,
+  Plus,
+  Trash2,
+  AlertCircle,
+  Check,
+  Info,
+  RefreshCw,
+  CheckSquare,
+  Filter,
+  ChevronDown,
+  CalendarIcon,
+  ClockIcon,
+} from "lucide-react"
 
 const AvailabilityManager = () => {
   const { session } = UserAuth()
@@ -19,6 +33,11 @@ const AvailabilityManager = () => {
   const [isAddingSlot, setIsAddingSlot] = useState(false)
   const [isRecurring, setIsRecurring] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
+  const [selectedSlots, setSelectedSlots] = useState([])
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
+  const [dateFilterDropdownOpen, setDateFilterDropdownOpen] = useState(false)
+  const [timeFilterDropdownOpen, setTimeFilterDropdownOpen] = useState(false)
 
   // Form state for advanced scheduling
   const [schedule, setSchedule] = useState({
@@ -362,6 +381,165 @@ const AvailabilityManager = () => {
     })
   }
 
+  // Get unique dates and times for filtering
+  const uniqueDates = useMemo(() => {
+    const slots = getAvailabilitySlots()
+    const dates = [...new Set(slots.map((slot) => slot.date))]
+    return dates.sort((a, b) => new Date(a) - new Date(b))
+  }, [availabilityData])
+
+  const uniqueTimes = useMemo(() => {
+    const slots = getAvailabilitySlots()
+    const times = [...new Set(slots.map((slot) => slot.time))]
+    return times.sort()
+  }, [availabilityData])
+
+  // Toggle slot selection for multi-delete
+  const toggleSlotSelection = (date, slot) => {
+    if (selectedSlots.some((item) => item.date === date && item.time === slot)) {
+      setSelectedSlots(selectedSlots.filter((item) => !(item.date === date && item.time === slot)))
+    } else {
+      setSelectedSlots([...selectedSlots, { date, time: slot }])
+    }
+  }
+
+  // Select all slots
+  const selectAllSlots = () => {
+    const allSlots = getAvailabilitySlots()
+    setSelectedSlots(allSlots)
+  }
+
+  // Deselect all slots
+  const deselectAllSlots = () => {
+    setSelectedSlots([])
+  }
+
+  // Select slots by date
+  const selectSlotsByDate = (date) => {
+    const slots = getAvailabilitySlots()
+    const dateSlots = slots.filter((slot) => slot.date === date)
+
+    // If all slots for this date are already selected, deselect them
+    const allSelected = dateSlots.every((slot) =>
+      selectedSlots.some((selected) => selected.date === slot.date && selected.time === slot.time),
+    )
+
+    if (allSelected) {
+      setSelectedSlots(selectedSlots.filter((slot) => slot.date !== date))
+    } else {
+      // Add all slots for this date that aren't already selected
+      const newSelectedSlots = [...selectedSlots]
+      dateSlots.forEach((slot) => {
+        if (!newSelectedSlots.some((selected) => selected.date === slot.date && selected.time === slot.time)) {
+          newSelectedSlots.push(slot)
+        }
+      })
+      setSelectedSlots(newSelectedSlots)
+    }
+
+    setDateFilterDropdownOpen(false)
+  }
+
+  // Select slots by time
+  const selectSlotsByTime = (time) => {
+    const slots = getAvailabilitySlots()
+    const timeSlots = slots.filter((slot) => slot.time === time)
+
+    // If all slots for this time are already selected, deselect them
+    const allSelected = timeSlots.every((slot) =>
+      selectedSlots.some((selected) => selected.date === slot.date && selected.time === slot.time),
+    )
+
+    if (allSelected) {
+      setSelectedSlots(selectedSlots.filter((slot) => slot.time !== time))
+    } else {
+      // Add all slots for this time that aren't already selected
+      const newSelectedSlots = [...selectedSlots]
+      timeSlots.forEach((slot) => {
+        if (!newSelectedSlots.some((selected) => selected.date === slot.date && selected.time === slot.time)) {
+          newSelectedSlots.push(slot)
+        }
+      })
+      setSelectedSlots(newSelectedSlots)
+    }
+
+    setTimeFilterDropdownOpen(false)
+  }
+
+  // Delete multiple selected slots
+  const deleteSelectedSlots = async () => {
+    if (selectedSlots.length === 0) return
+
+    setLoading(true)
+    try {
+      // Fetch current availability
+      const { success, data: currentAvailability, recordId } = await fetchDoctorAvailability(doctorId)
+      if (!success) {
+        throw new Error("Failed to fetch current availability")
+      }
+
+      // Create a copy of the current availability
+      const updatedAvailability = { ...currentAvailability.availability }
+
+      // Process each selected slot
+      for (const slot of selectedSlots) {
+        // Find the date index
+        const dateIndex = updatedAvailability.dates.findIndex((d) => d.date === slot.date)
+
+        if (dateIndex !== -1) {
+          // Remove the slot
+          updatedAvailability.dates[dateIndex].slots = updatedAvailability.dates[dateIndex].slots.filter(
+            (s) => s !== slot.time,
+          )
+
+          // If no slots left for the date, remove the date entry
+          if (updatedAvailability.dates[dateIndex].slots.length === 0) {
+            updatedAvailability.dates.splice(dateIndex, 1)
+          }
+        }
+      }
+
+      // Update availability in database
+      const updateResult = await updateDoctorAvailability(doctorId, updatedAvailability, recordId)
+      if (!updateResult.success) {
+        throw new Error(updateResult.error?.message || "Failed to update availability")
+      }
+
+      // Update local state
+      setAvailabilityData(updatedAvailability)
+      setSuccessMessage(`Successfully deleted ${selectedSlots.length} time slots`)
+
+      // Clear selection
+      setSelectedSlots([])
+      setIsMultiSelectMode(false)
+    } catch (err) {
+      console.error("Error deleting slots:", err)
+      setError("An unexpected error occurred while deleting slots")
+    } finally {
+      setLoading(false)
+      setTimeout(() => setSuccessMessage(""), 5000)
+    }
+  }
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (filterDropdownOpen || dateFilterDropdownOpen || timeFilterDropdownOpen) {
+        // Check if the click is outside the dropdown
+        if (!event.target.closest(".filter-dropdown")) {
+          setFilterDropdownOpen(false)
+          setDateFilterDropdownOpen(false)
+          setTimeFilterDropdownOpen(false)
+        }
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [filterDropdownOpen, dateFilterDropdownOpen, timeFilterDropdownOpen])
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <div className="flex justify-between items-center mb-4">
@@ -549,39 +727,231 @@ const AvailabilityManager = () => {
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500"></div>
         </div>
       ) : getAvailabilitySlots().length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Day</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Time Slot
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {getAvailabilitySlots().map((slot, index) => (
-                <tr key={`${slot.date}-${slot.time}-${index}`}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(slot.date)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{getDayName(slot.date)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatTime(slot.time)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              {!isMultiSelectMode ? (
+                <button
+                  onClick={() => setIsMultiSelectMode(true)}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 flex items-center"
+                >
+                  <CheckSquare className="w-4 h-4 mr-1" />
+                  <span>Enable Multi-Select</span>
+                </button>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setIsMultiSelectMode(false)
+                      setSelectedSlots([])
+                    }}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+
+                  {/* Select All Button */}
+                  <button
+                    onClick={selectedSlots.length === getAvailabilitySlots().length ? deselectAllSlots : selectAllSlots}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 flex items-center"
+                  >
+                    <CheckSquare className="w-4 h-4 mr-1" />
+                    {selectedSlots.length === getAvailabilitySlots().length ? "Deselect All" : "Select All"}
+                  </button>
+
+                  {/* Filter Dropdown */}
+                  <div className="relative filter-dropdown">
                     <button
-                      onClick={() => handleDeleteSlot(slot.date, slot.time)}
-                      className="text-red-600 hover:text-red-900"
-                      aria-label="Delete slot"
+                      onClick={() => setFilterDropdownOpen(!filterDropdownOpen)}
+                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 flex items-center"
                     >
-                      <Trash2 />
+                      <Filter className="w-4 h-4 mr-1" />
+                      Filter
+                      <ChevronDown className="w-3 h-3 ml-1" />
                     </button>
-                  </td>
+
+                    {filterDropdownOpen && (
+                      <div className="absolute left-0 mt-1 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200">
+                        <div className="py-1">
+                          {/* Filter by Date */}
+                          <div className="relative filter-dropdown">
+                            <button
+                              onClick={() => {
+                                setDateFilterDropdownOpen(!dateFilterDropdownOpen)
+                                setTimeFilterDropdownOpen(false)
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center"
+                            >
+                              <CalendarIcon className="w-4 h-4 mr-2" />
+                              Filter by Date
+                              <ChevronDown className="w-3 h-3 ml-auto" />
+                            </button>
+
+                            {dateFilterDropdownOpen && (
+                              <div className="absolute left-full top-0 ml-1 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200 max-h-60 overflow-y-auto">
+                                <div className="py-1">
+                                  {uniqueDates.map((date) => {
+                                    const dateSlots = getAvailabilitySlots().filter((slot) => slot.date === date)
+                                    const selectedCount = selectedSlots.filter((slot) => slot.date === date).length
+                                    const isAllSelected = selectedCount === dateSlots.length && dateSlots.length > 0
+
+                                    return (
+                                      <button
+                                        key={date}
+                                        onClick={() => selectSlotsByDate(date)}
+                                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between"
+                                      >
+                                        <span>
+                                          {formatDate(date)} ({getDayName(date)})
+                                        </span>
+                                        {isAllSelected && <Check className="w-4 h-4 text-primary-600" />}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Filter by Time */}
+                          <div className="relative filter-dropdown">
+                            <button
+                              onClick={() => {
+                                setTimeFilterDropdownOpen(!timeFilterDropdownOpen)
+                                setDateFilterDropdownOpen(false)
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center"
+                            >
+                              <ClockIcon className="w-4 h-4 mr-2" />
+                              Filter by Time
+                              <ChevronDown className="w-3 h-3 ml-auto" />
+                            </button>
+
+                            {timeFilterDropdownOpen && (
+                              <div className="absolute left-full top-0 ml-1 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200 max-h-60 overflow-y-auto">
+                                <div className="py-1">
+                                  {uniqueTimes.map((time) => {
+                                    const timeSlots = getAvailabilitySlots().filter((slot) => slot.time === time)
+                                    const selectedCount = selectedSlots.filter((slot) => slot.time === time).length
+                                    const isAllSelected = selectedCount === timeSlots.length && timeSlots.length > 0
+
+                                    return (
+                                      <button
+                                        key={time}
+                                        onClick={() => selectSlotsByTime(time)}
+                                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between"
+                                      >
+                                        <span>{formatTime(time)}</span>
+                                        {isAllSelected && <Check className="w-4 h-4 text-primary-600" />}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Delete Selected Button */}
+                  <button
+                    onClick={deleteSelectedSlots}
+                    disabled={selectedSlots.length === 0}
+                    className={`px-3 py-1.5 text-sm rounded-md flex items-center ${
+                      selectedSlots.length > 0
+                        ? "bg-red-600 text-white hover:bg-red-700"
+                        : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                    }`}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Delete Selected ({selectedSlots.length}/{getAvailabilitySlots().length})
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {isMultiSelectMode && (
+            <div className="mb-4 p-3 bg-blue-50 border-l-4 border-blue-500 text-blue-700 rounded-lg text-sm">
+              <div className="flex items-center">
+                <Info className="h-5 w-5 mr-2" />
+                <span>
+                  <strong>Multi-select mode enabled.</strong> Select individual slots by clicking the checkbox, or use
+                  the filter options to select multiple slots at once.
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  {isMultiSelectMode && (
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Select
+                    </th>
+                  )}
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Day
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Time Slot
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {getAvailabilitySlots().map((slot, index) => {
+                  const isSelected = selectedSlots.some((item) => item.date === slot.date && item.time === slot.time)
+                  return (
+                    <tr
+                      key={`${slot.date}-${slot.time}-${index}`}
+                      className={isSelected ? "bg-blue-50" : ""}
+                      onClick={() => (isMultiSelectMode ? toggleSlotSelection(slot.date, slot.time) : null)}
+                      style={isMultiSelectMode ? { cursor: "pointer" } : {}}
+                    >
+                      {isMultiSelectMode && (
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSlotSelection(slot.date, slot.time)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                          />
+                        </td>
+                      )}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(slot.date)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{getDayName(slot.date)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatTime(slot.time)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (!isMultiSelectMode) {
+                              handleDeleteSlot(slot.date, slot.time)
+                            }
+                          }}
+                          className={`text-red-600 hover:text-red-900 ${isMultiSelectMode ? "hidden" : ""}`}
+                          aria-label="Delete slot"
+                        >
+                          <Trash2 />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="text-center py-8 text-gray-500">
@@ -595,4 +965,3 @@ const AvailabilityManager = () => {
 }
 
 export default AvailabilityManager
-

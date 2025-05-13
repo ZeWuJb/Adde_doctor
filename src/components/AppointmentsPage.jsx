@@ -152,10 +152,9 @@ const AppointmentsPage = () => {
         // Remove from pending appointments in the hook's state and localStorage
         removeFromPending(appointment.id || appointment.appointmentId)
 
-        // Immediately open the video conference link in a new tab
+        // Store the video conference link but don't automatically open it
         if (result.data.video_conference_link) {
-          console.log("Opening video conference link:", result.data.video_conference_link)
-          window.open(result.data.video_conference_link, "_blank")
+          console.log("Video conference link available:", result.data.video_conference_link)
         } else {
           console.error("No video conference link found in the saved appointment")
         }
@@ -362,4 +361,3 @@ const AppointmentsPage = () => {
 }
 
 export default AppointmentsPage
-

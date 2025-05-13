@@ -193,9 +193,9 @@ const DoctorDashboard = () => {
           setStatistics(statsResult.data)
         }
 
-        // Open video conference link in a new tab
+        // Store the video conference link but don't automatically open it
         if (result.data.video_conference_link) {
-          window.open(result.data.video_conference_link, "_blank")
+          console.log("Video conference link available:", result.data.video_conference_link)
         }
       } else {
         console.error("Failed to save appointment:", result.error)
@@ -487,4 +487,3 @@ const DoctorDashboard = () => {
 }
 
 export default DoctorDashboard
-
