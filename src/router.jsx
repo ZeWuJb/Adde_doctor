@@ -9,7 +9,10 @@ import DoctorsPage from "./admin/pages/DoctorsPage"
 import AppointmentsPage from "./admin/pages/AppointmentsPage"
 import AnalyticsPage from "./admin/pages/DoctorsPage" 
 import SettingsPage from "./admin/pages/SettingsPage"
-  
+import ContentManagementPage from "./admin/pages/ContentManagementPage"
+import PatientsPage from "./admin/pages/PatientsPage"
+import SystemMonitoringPage from "./admin/pages/SystemMonitoringPage"
+import UserRolesPage from "./admin/pages/UserRolesPage"
 
 
 export const router = createBrowserRouter([
@@ -34,6 +37,23 @@ export const router = createBrowserRouter([
       { path: "admin/appointments", element: <AppointmentsPage /> },
       { path: "admin/analytics", element: <AnalyticsPage /> },
       { path: "admin/settings", element: <SettingsPage /> },
+      // Add these routes to your router
+{
+  path: "/admin/content",
+  element: <ContentManagementPage />
+},
+{
+  path: "/admin/patients",
+  element: <PatientsPage />
+},
+{
+  path: "/admin/system",
+  element: <SystemMonitoringPage />
+},
+{
+  path: "/admin/user-roles",
+  element: <UserRolesPage />
+}
     ],
   },
 ])

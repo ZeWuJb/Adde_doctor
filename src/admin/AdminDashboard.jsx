@@ -8,6 +8,7 @@ import AdminHeader from "./components/AdminHeader"
 import AdminStats from "./components/AdminStats"
 import DoctorsList from "./components/DoctorsList"
 import RecentActivity from "./components/RecentActivity"
+import { supabase } from "../supabaseClient"
 
 const AdminDashboard = () => {
   // Update to use userData directly from context
@@ -16,12 +17,18 @@ const AdminDashboard = () => {
   const [doctors, setDoctors] = useState([])
   const [dashboardLoading, setDashboardLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [stats, setStats] = useState({
+    doctorsCount: 0,
+    patientsCount: 0,
+    appointmentsCount: 0,
+    articlesCount: 0,
+  })
   const location = useLocation()
 
   useEffect(() => {
-    const fetchDoctors = async () => {
+    const fetchDashboardData = async () => {
       try {
-        // In a real app, this would be an API call to your backend
+        // In a real app, this would be API calls to your backend
         const mockDoctors = [
           {
             id: 1,
@@ -57,16 +64,44 @@ const AdminDashboard = () => {
           },
         ]
         setDoctors(mockDoctors)
+
+        // Fetch actual counts from database
+        try {
+          // Get doctors count
+          const { count: doctorsCount } = await supabase.from("doctors").select("*", { count: "exact", head: true })
+
+          // Get patients (mothers) count
+          const { count: patientsCount } = await supabase.from("mothers").select("*", { count: "exact", head: true })
+
+          // Get appointments count
+          const { count: appointmentsCount } = await supabase
+            .from("appointments")
+            .select("*", { count: "exact", head: true })
+
+          // Get articles count
+          const { count: articlesCount } = await supabase
+            .from("education_articles")
+            .select("*", { count: "exact", head: true })
+
+          setStats({
+            doctorsCount: doctorsCount || 0,
+            patientsCount: patientsCount || 0,
+            appointmentsCount: appointmentsCount || 0,
+            articlesCount: articlesCount || 0,
+          })
+        } catch (err) {
+          console.error("Error fetching stats:", err.message)
+        }
       } catch (err) {
-        console.error("Error fetching doctors:", err.message)
-        setError("Failed to fetch doctors data. Please try again later.")
+        console.error("Error fetching dashboard data:", err.message)
+        setError("Failed to fetch dashboard data. Please try again later.")
       } finally {
         setDashboardLoading(false)
       }
     }
 
     if (session && session.role === "admin") {
-      fetchDoctors()
+      fetchDashboardData()
     } else {
       setDashboardLoading(false)
     }
@@ -151,7 +186,7 @@ const AdminDashboard = () => {
           </div>
 
           {/* Stats Cards */}
-          <AdminStats />
+          <AdminStats stats={stats} />
 
           {/* Doctors List */}
           <DoctorsList doctors={doctors} />

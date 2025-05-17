@@ -1,6 +1,6 @@
 "use client"
 
-import { Users, Calendar, Settings, LogOut, User, PieChart, Activity } from "lucide-react"
+import { Users, Calendar, Settings, LogOut, User, PieChart, Activity, BookOpen, Shield, Server } from "lucide-react"
 import { Link } from "react-router-dom"
 import PropTypes from "prop-types"
 
@@ -44,11 +44,11 @@ const AdminSidebar = ({ sidebarOpen, session, userData, handleSignOut, currentPa
                   className={`flex items-center px-4 py-2 ${
                     currentPath === "/admin-dashboard"
                       ? "text-white bg-pink-600 rounded-md"
-                      : "text-gray-300 hover:bg-gray-100 hover:text-pink-600 rounded-md"
+                      : "text-gray-600 hover:bg-gray-100 hover:text-pink-600 rounded-md"
                   }`}
                 >
                   <PieChart
-                    className={`w-5 h-5 mr-3 ${currentPath === "/admin-dashboard" ? "text-white" : "text-gray-300"}`}
+                    className={`w-5 h-5 mr-3 ${currentPath === "/admin-dashboard" ? "text-white" : "text-gray-500"}`}
                   />
                   <span>Dashboard</span>
                 </Link>
@@ -59,13 +59,28 @@ const AdminSidebar = ({ sidebarOpen, session, userData, handleSignOut, currentPa
                   className={`flex items-center px-4 py-2 ${
                     currentPath === "/admin/doctors"
                       ? "text-white bg-pink-600 rounded-md"
-                      : "text-gray-300 hover:bg-gray-100 hover:text-pink-600 rounded-md"
+                      : "text-gray-600 hover:bg-gray-100 hover:text-pink-600 rounded-md"
                   }`}
                 >
                   <Users
-                    className={`w-5 h-5 mr-3 ${currentPath === "/admin/doctors" ? "text-white" : "text-gray-300"}`}
+                    className={`w-5 h-5 mr-3 ${currentPath === "/admin/doctors" ? "text-white" : "text-gray-500"}`}
                   />
                   <span>Doctors</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/admin/patients"
+                  className={`flex items-center px-4 py-2 ${
+                    currentPath === "/admin/patients"
+                      ? "text-white bg-pink-600 rounded-md"
+                      : "text-gray-600 hover:bg-gray-100 hover:text-pink-600 rounded-md"
+                  }`}
+                >
+                  <User
+                    className={`w-5 h-5 mr-3 ${currentPath === "/admin/patients" ? "text-white" : "text-gray-500"}`}
+                  />
+                  <span>Patients</span>
                 </Link>
               </li>
               <li>
@@ -74,13 +89,58 @@ const AdminSidebar = ({ sidebarOpen, session, userData, handleSignOut, currentPa
                   className={`flex items-center px-4 py-2 ${
                     currentPath === "/admin/appointments"
                       ? "text-white bg-pink-600 rounded-md"
-                      : "text-gray-300 hover:bg-gray-100 hover:text-pink-600 rounded-md"
+                      : "text-gray-600 hover:bg-gray-100 hover:text-pink-600 rounded-md"
                   }`}
                 >
                   <Calendar
-                    className={`w-5 h-5 mr-3 ${currentPath === "/admin/appointments" ? "text-white" : "text-gray-300"}`}
+                    className={`w-5 h-5 mr-3 ${currentPath === "/admin/appointments" ? "text-white" : "text-gray-500"}`}
                   />
                   <span>Appointments</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/admin/content"
+                  className={`flex items-center px-4 py-2 ${
+                    currentPath === "/admin/content"
+                      ? "text-white bg-pink-600 rounded-md"
+                      : "text-gray-600 hover:bg-gray-100 hover:text-pink-600 rounded-md"
+                  }`}
+                >
+                  <BookOpen
+                    className={`w-5 h-5 mr-3 ${currentPath === "/admin/content" ? "text-white" : "text-gray-500"}`}
+                  />
+                  <span>Health Content</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/admin/user-roles"
+                  className={`flex items-center px-4 py-2 ${
+                    currentPath === "/admin/user-roles"
+                      ? "text-white bg-pink-600 rounded-md"
+                      : "text-gray-600 hover:bg-gray-100 hover:text-pink-600 rounded-md"
+                  }`}
+                >
+                  <Shield
+                    className={`w-5 h-5 mr-3 ${currentPath === "/admin/user-roles" ? "text-white" : "text-gray-500"}`}
+                  />
+                  <span>User Roles</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/admin/system"
+                  className={`flex items-center px-4 py-2 ${
+                    currentPath === "/admin/system"
+                      ? "text-white bg-pink-600 rounded-md"
+                      : "text-gray-600 hover:bg-gray-100 hover:text-pink-600 rounded-md"
+                  }`}
+                >
+                  <Server
+                    className={`w-5 h-5 mr-3 ${currentPath === "/admin/system" ? "text-white" : "text-gray-500"}`}
+                  />
+                  <span>System Monitoring</span>
                 </Link>
               </li>
               <li>
@@ -89,11 +149,11 @@ const AdminSidebar = ({ sidebarOpen, session, userData, handleSignOut, currentPa
                   className={`flex items-center px-4 py-2 ${
                     currentPath === "/admin/analytics"
                       ? "text-white bg-pink-600 rounded-md"
-                      : "text-gray-300 hover:bg-gray-100 hover:text-pink-600 rounded-md"
+                      : "text-gray-600 hover:bg-gray-100 hover:text-pink-600 rounded-md"
                   }`}
                 >
                   <Activity
-                    className={`w-5 h-5 mr-3 ${currentPath === "/admin/analytics" ? "text-white" : "text-gray-300"}`}
+                    className={`w-5 h-5 mr-3 ${currentPath === "/admin/analytics" ? "text-white" : "text-gray-500"}`}
                   />
                   <span>Analytics</span>
                 </Link>
@@ -104,11 +164,11 @@ const AdminSidebar = ({ sidebarOpen, session, userData, handleSignOut, currentPa
                   className={`flex items-center px-4 py-2 ${
                     currentPath === "/admin/settings"
                       ? "text-white bg-pink-600 rounded-md"
-                      : "text-gray-300 hover:bg-gray-100 hover:text-pink-600 rounded-md"
+                      : "text-gray-600 hover:bg-gray-100 hover:text-pink-600 rounded-md"
                   }`}
                 >
                   <Settings
-                    className={`w-5 h-5 mr-3 ${currentPath === "/admin/settings" ? "text-white" : "text-gray-300"}`}
+                    className={`w-5 h-5 mr-3 ${currentPath === "/admin/settings" ? "text-white" : "text-gray-500"}`}
                   />
                   <span>Settings</span>
                 </Link>
