@@ -72,40 +72,106 @@ const SystemMonitoringPage = () => {
   const [refreshing, setRefreshing] = useState(false)
   const location = useLocation()
 
-  useEffect(() => {
-    const fetchSystemStatus = async () => {
-      try {
-        setLoading(true)
+  const fetchSystemStatus = async () => {
+    try {
+      setLoading(true)
 
-        // In a real app, you would fetch actual system metrics
-        // For now, we'll simulate with mock data
+      // Simulate database query to check connection
+      const startTime = Date.now()
+      await supabase.from("admins").select("*", { count: "exact", head: true })
 
-        // Simulate database query to check connection
-        const startTime = Date.now()
-        await supabase.from("admins").select("*", { count: "exact", head: true })
+      const endTime = Date.now()
+      const dbLatency = endTime - startTime
 
-        const endTime = Date.now()
-        const dbLatency = endTime - startTime
+      // Get storage usage (this is a mock since Supabase doesn't expose this directly)
+      const storageUsage = Math.floor(Math.random() * 20) + 60 // Mock value between 60-80GB
 
-        // Update system status with real database latency
-        setSystemStatus((prev) => ({
-          ...prev,
-          database: {
-            ...prev.database,
-            latency: dbLatency,
-            status: dbLatency > 500 ? "warning" : "healthy",
-          },
-        }))
+      // Get user counts
+      const { count: totalUsers, error: usersError } = await supabase
+        .from("mothers")
+        .select("*", { count: "exact", head: true })
 
-        // In a real app, you would fetch more metrics here
-      } catch (err) {
-        console.error("Error fetching system status:", err.message)
-        setError("Failed to fetch system status. Please try again later.")
-      } finally {
-        setLoading(false)
-      }
+      if (usersError) throw usersError
+
+      // Get active users (users who have logged in within the last 24 hours - mock data)
+      const activeUsers = Math.floor(totalUsers * 0.3) // Assume 30% of users are active
+
+      // Get API latency (mock data)
+      const apiLatency = Math.floor(Math.random() * 100) + 80 // 80-180ms
+
+      // Update system status with real database latency and user counts
+      setSystemStatus({
+        database: {
+          status: dbLatency > 500 ? "warning" : "healthy",
+          latency: dbLatency,
+          uptime: 99.98,
+        },
+        api: {
+          status: apiLatency > 150 ? "warning" : "healthy",
+          latency: apiLatency,
+          uptime: 99.95,
+        },
+        storage: {
+          status: storageUsage > 400 ? "warning" : "healthy",
+          usage: storageUsage,
+          total: 500,
+        },
+        auth: {
+          status: "healthy",
+          activeUsers: activeUsers,
+          totalUsers: totalUsers || 0,
+        },
+      })
+
+      // Fetch recent system logs (mock data since we don't have a real logs table)
+      const mockLogs = [
+        {
+          id: 1,
+          timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+          level: "info",
+          service: "auth",
+          message: "User login successful",
+        },
+        {
+          id: 2,
+          timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+          level: "warning",
+          service: "database",
+          message: "High database query latency detected",
+        },
+        {
+          id: 3,
+          timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+          level: "error",
+          service: "api",
+          message: "API endpoint /api/appointments/create returned 500 error",
+        },
+        {
+          id: 4,
+          timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+          level: "info",
+          service: "storage",
+          message: "Backup completed successfully",
+        },
+        {
+          id: 5,
+          timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+          level: "info",
+          service: "auth",
+          message: "New user registered",
+        },
+      ]
+
+      setRecentLogs(mockLogs)
+    } catch (err) {
+      console.error("Error fetching system status:", err.message)
+      setError("Failed to fetch system status. Please try again later.")
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     if (session && session.role === "admin") {
       fetchSystemStatus()
     } else {
@@ -120,32 +186,7 @@ const SystemMonitoringPage = () => {
   const handleRefresh = async () => {
     setRefreshing(true)
     try {
-      // Simulate fetching updated data
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-
-      // Update with new random values
-      setSystemStatus(() => ({
-        database: {
-          status: Math.random() > 0.8 ? "warning" : "healthy",
-          latency: Math.floor(Math.random() * 100) + 30,
-          uptime: 99.9 + Math.random() * 0.09,
-        },
-        api: {
-          status: Math.random() > 0.9 ? "error" : "healthy",
-          latency: Math.floor(Math.random() * 200) + 80,
-          uptime: 99.8 + Math.random() * 0.19,
-        },
-        storage: {
-          status: "healthy",
-          usage: Math.floor(Math.random() * 20) + 60,
-          total: 500,
-        },
-        auth: {
-          status: "healthy",
-          activeUsers: Math.floor(Math.random() * 20) + 30,
-          totalUsers: 189,
-        },
-      }))
+      await fetchSystemStatus()
 
       // Add a new log entry
       const newLog = {

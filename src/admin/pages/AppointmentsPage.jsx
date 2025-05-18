@@ -6,6 +6,7 @@ import { Search, Filter, Calendar, AlertCircle, ChevronDown } from "lucide-react
 import AdminSidebar from "../components/AdminSidebar"
 import AdminHeader from "../components/AdminHeader"
 import { useLocation } from "react-router-dom"
+import { supabase } from "../../supabaseClient"
 
 const AppointmentsPage = () => {
   const { session, userData, signOut } = UserAuth()
@@ -20,84 +21,78 @@ const AppointmentsPage = () => {
   const [error, setError] = useState(null)
   const location = useLocation()
 
-  useEffect(() => {
-    const fetchAppointments = async () => {
-      try {
-        // In a real app, this would be an API call to your backend
-        const mockAppointments = [
-          {
-            id: 1,
-            patientName: "Olivia Martin",
-            doctorName: "Dr. Sarah Johnson",
-            doctorSpecialty: "Cardiology",
-            date: "2023-06-15T10:30:00",
-            status: "completed",
-            patientAvatar: "https://randomuser.me/api/portraits/women/44.jpg",
-            doctorAvatar: "https://randomuser.me/api/portraits/women/68.jpg",
-          },
-          {
-            id: 2,
-            patientName: "James Wilson",
-            doctorName: "Dr. Michael Chen",
-            doctorSpecialty: "Neurology",
-            date: "2023-06-16T14:00:00",
-            status: "upcoming",
-            patientAvatar: "https://randomuser.me/api/portraits/men/32.jpg",
-            doctorAvatar: "https://randomuser.me/api/portraits/men/75.jpg",
-          },
-          {
-            id: 3,
-            patientName: "Sophia Anderson",
-            doctorName: "Dr. Emily Rodriguez",
-            doctorSpecialty: "Pediatrics",
-            date: "2023-06-14T09:15:00",
-            status: "cancelled",
-            patientAvatar: "https://randomuser.me/api/portraits/women/33.jpg",
-            doctorAvatar: "https://randomuser.me/api/portraits/women/44.jpg",
-          },
-          {
-            id: 4,
-            patientName: "Ethan Brown",
-            doctorName: "Dr. James Wilson",
-            doctorSpecialty: "Orthopedics",
-            date: "2023-06-17T11:00:00",
-            status: "upcoming",
-            patientAvatar: "https://randomuser.me/api/portraits/men/42.jpg",
-            doctorAvatar: "https://randomuser.me/api/portraits/men/32.jpg",
-          },
-          {
-            id: 5,
-            patientName: "Ava Johnson",
-            doctorName: "Dr. Sarah Johnson",
-            doctorSpecialty: "Cardiology",
-            date: "2023-06-15T15:30:00",
-            status: "completed",
-            patientAvatar: "https://randomuser.me/api/portraits/women/68.jpg",
-            doctorAvatar: "https://randomuser.me/api/portraits/women/68.jpg",
-          },
-          {
-            id: 6,
-            patientName: "Noah Davis",
-            doctorName: "Dr. Michael Chen",
-            doctorSpecialty: "Neurology",
-            date: "2023-06-18T10:00:00",
-            status: "pending",
-            patientAvatar: "https://randomuser.me/api/portraits/men/75.jpg",
-            doctorAvatar: "https://randomuser.me/api/portraits/men/75.jpg",
-          },
-        ]
+  // Add the fetchAppointments function outside of useEffect so it can be called from the subscription
+  const fetchAppointments = async () => {
+    try {
+      setLoading(true)
+      // Fetch appointments from Supabase
+      const { data: appointmentsData, error: appointmentsError } = await supabase
+        .from("appointments")
+        .select(`
+          id, 
+          requested_time, 
+          status, 
+          payment_status,
+          video_conference_link,
+          doctors:doctor_id (
+            id,
+            full_name,
+            speciality,
+            profile_url
+          ),
+          mothers:mother_id (
+            user_id,
+            full_name,
+            profile_url
+          )
+        `)
+        .order("requested_time", { ascending: false })
 
-        setAppointments(mockAppointments)
-        setFilteredAppointments(mockAppointments)
-      } catch (err) {
-        console.error("Error fetching appointments:", err.message)
-        setError("Failed to fetch appointments data. Please try again later.")
-      } finally {
-        setLoading(false)
-      }
+      if (appointmentsError) throw appointmentsError
+
+      // Transform the data to match the expected format
+      const formattedAppointments = appointmentsData.map((appointment) => ({
+        id: appointment.id,
+        patientName: appointment.mothers?.full_name || "Unknown Patient",
+        doctorName: appointment.doctors?.full_name || "Unknown Doctor",
+        doctorSpecialty: appointment.doctors?.speciality || "General",
+        date: appointment.requested_time,
+        status: appointment.status,
+        patientAvatar: appointment.mothers?.profile_url || "https://randomuser.me/api/portraits/women/44.jpg",
+        doctorAvatar: appointment.doctors?.profile_url || "https://randomuser.me/api/portraits/women/68.jpg",
+      }))
+
+      setAppointments(formattedAppointments)
+      setFilteredAppointments(formattedAppointments)
+    } catch (err) {
+      console.error("Error fetching appointments:", err.message)
+      setError("Failed to fetch appointments data. Please try again later.")
+    } finally {
+      setLoading(false)
     }
+  }
 
+  // Update the useEffect to fetch real data from Supabase instead of using mock data
+  useEffect(() => {
     fetchAppointments()
+  }, [])
+
+  // Add a subscription for real-time updates
+  useEffect(() => {
+    // Set up real-time subscription for appointments
+    const appointmentsSubscription = supabase
+      .channel("appointments-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, (payload) => {
+        console.log("Appointment change received:", payload)
+        // Refresh the appointments data when changes occur
+        fetchAppointments()
+      })
+      .subscribe()
+
+    // Cleanup subscription on component unmount
+    return () => {
+      supabase.removeChannel(appointmentsSubscription)
+    }
   }, [])
 
   useEffect(() => {

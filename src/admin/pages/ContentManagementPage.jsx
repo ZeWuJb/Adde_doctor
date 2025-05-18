@@ -27,40 +27,31 @@ const ContentManagementPage = () => {
     tags: "",
   })
   const location = useLocation()
+  const [success, setSuccess] = useState(null)
+
+  const fetchArticles = async () => {
+    try {
+      setLoading(true)
+
+      // Fetch from Supabase
+      const { data, error } = await supabase
+        .from("education_articles")
+        .select("*")
+        .order("created_at", { ascending: false })
+
+      if (error) throw error
+
+      setArticles(data)
+      setFilteredArticles(data)
+    } catch (err) {
+      console.error("Error fetching articles:", err.message)
+      setError("Failed to fetch articles. Please try again later.")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchArticles = async () => {
-      try {
-        setLoading(true)
-
-        // In a real app, fetch from your Supabase table
-        const { data, error } = await supabase
-          .from("education_articles")
-          .select("*")
-          .order("created_at", { ascending: false })
-
-        if (error) throw error
-
-        // Add mock categories and tags for demo purposes
-        const articlesWithMeta = data.map((article) => ({
-          ...article,
-          category: ["pregnancy", "childcare", "nutrition", "health"][Math.floor(Math.random() * 4)],
-          tags: ["first trimester", "nutrition", "exercise", "mental health", "newborn"].slice(
-            0,
-            Math.floor(Math.random() * 3) + 1,
-          ),
-        }))
-
-        setArticles(articlesWithMeta)
-        setFilteredArticles(articlesWithMeta)
-      } catch (err) {
-        console.error("Error fetching articles:", err.message)
-        setError("Failed to fetch articles. Please try again later.")
-      } finally {
-        setLoading(false)
-      }
-    }
-
     if (session && session.role === "admin") {
       fetchArticles()
     } else {
@@ -116,19 +107,21 @@ const ContentManagementPage = () => {
           title: newArticle.title,
           summary: newArticle.summary,
           content: newArticle.content,
+          category: newArticle.category,
+          tags: newArticle.tags
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter((tag) => tag),
         })
         .select()
 
       if (error) throw error
 
-      // Add the new article to the state with mock category and tags
-      const addedArticle = {
-        ...data[0],
-        category: newArticle.category,
-        tags: newArticle.tags.split(",").map((tag) => tag.trim()),
-      }
+      // Add the new article to the state
+      const addedArticle = data[0]
 
       setArticles([addedArticle, ...articles])
+      setSuccess("Article added successfully")
 
       // Reset form and close modal
       setNewArticle({
@@ -154,6 +147,7 @@ const ContentManagementPage = () => {
 
       // Update state
       setArticles(articles.filter((article) => article.id !== id))
+      setSuccess("Article deleted successfully")
     } catch (err) {
       console.error("Error deleting article:", err.message)
       setError("Failed to delete article. Please try again.")
@@ -167,6 +161,23 @@ const ContentManagementPage = () => {
       day: "numeric",
     })
   }
+
+  useEffect(() => {
+    // Set up real-time subscription for education_articles
+    const articlesSubscription = supabase
+      .channel("articles-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "education_articles" }, (payload) => {
+        console.log("Article change received:", payload)
+        // Refresh the articles data when changes occur
+        fetchArticles()
+      })
+      .subscribe()
+
+    // Cleanup subscription on component unmount
+    return () => {
+      supabase.removeChannel(articlesSubscription)
+    }
+  }, [])
 
   if (loading) {
     return (
@@ -204,6 +215,15 @@ const ContentManagementPage = () => {
             <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
               <p>{error}</p>
               <button className="mt-2 text-sm font-medium text-red-700 underline" onClick={() => setError(null)}>
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {success && (
+            <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg">
+              <p>{success}</p>
+              <button className="mt-2 text-sm font-medium text-green-700 underline" onClick={() => setSuccess(null)}>
                 Dismiss
               </button>
             </div>

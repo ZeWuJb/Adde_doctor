@@ -25,45 +25,30 @@ const AdminDashboard = () => {
   })
   const location = useLocation()
 
+  // Update the useEffect to fetch real data from Supabase instead of using mock data
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // In a real app, this would be API calls to your backend
-        const mockDoctors = [
-          {
-            id: 1,
-            name: "Dr. Sarah Johnson",
-            specialty: "Cardiology",
-            patients: 42,
-            appointments: 12,
-            avatar: "https://randomuser.me/api/portraits/women/44.jpg",
-          },
-          {
-            id: 2,
-            name: "Dr. Michael Chen",
-            specialty: "Neurology",
-            patients: 38,
-            appointments: 8,
-            avatar: "https://randomuser.me/api/portraits/men/32.jpg",
-          },
-          {
-            id: 3,
-            name: "Dr. Emily Rodriguez",
-            specialty: "Pediatrics",
-            patients: 65,
-            appointments: 15,
-            avatar: "https://randomuser.me/api/portraits/women/68.jpg",
-          },
-          {
-            id: 4,
-            name: "Dr. James Wilson",
-            specialty: "Orthopedics",
-            patients: 29,
-            appointments: 7,
-            avatar: "https://randomuser.me/api/portraits/men/75.jpg",
-          },
-        ]
-        setDoctors(mockDoctors)
+        // Fetch doctors from Supabase
+        const { data: doctorsData, error: doctorsError } = await supabase
+          .from("doctors")
+          .select("*")
+          .limit(4)
+          .order("created_at", { ascending: false })
+
+        if (doctorsError) throw doctorsError
+
+        // Transform the data to match the expected format
+        const formattedDoctors = doctorsData.map((doctor) => ({
+          id: doctor.id,
+          name: doctor.full_name,
+          specialty: doctor.speciality || "General",
+          patients: doctor.patients_count || 0,
+          appointments: doctor.appointments_count || 0,
+          avatar: doctor.profile_url || "https://randomuser.me/api/portraits/men/32.jpg",
+        }))
+
+        setDoctors(formattedDoctors)
 
         // Fetch actual counts from database
         try {

@@ -6,6 +6,7 @@ import { useLocation } from "react-router-dom"
 import AdminSidebar from "../components/AdminSidebar"
 import AdminHeader from "../components/AdminHeader"
 import { Shield, Search, Plus, Edit, Trash2, Users, AlertCircle } from "lucide-react"
+import { supabase } from "../../supabaseClient"
 
 const UserRolesPage = () => {
   const { session, userData, signOut } = UserAuth()
@@ -73,10 +74,32 @@ const UserRolesPage = () => {
       try {
         setLoading(true)
 
-        // In a real app, fetch from your Supabase table
-        // For now, we'll use the mock data defined above
+        // Check if the roles table exists in Supabase
+        try {
+          // Try to fetch roles from Supabase
+          const { data: rolesData, error: rolesError } = await supabase
+            .from("roles")
+            .select("*")
+            .order("name", { ascending: true })
 
-        setFilteredRoles(roles)
+          if (rolesError) {
+            // If the table doesn't exist, use mock data
+            if (rolesError.message.includes("does not exist")) {
+              console.warn("Roles table does not exist in the database, using mock data")
+              setFilteredRoles(roles)
+            } else {
+              throw rolesError
+            }
+          } else {
+            // If we successfully fetched roles, use them
+            setRoles(rolesData)
+            setFilteredRoles(rolesData)
+          }
+        } catch (err) {
+          console.error("Error checking for roles table:", err.message)
+          // Fall back to mock data
+          setFilteredRoles(roles)
+        }
       } catch (err) {
         console.error("Error fetching roles:", err.message)
         setError("Failed to fetch user roles. Please try again later.")
@@ -90,7 +113,7 @@ const UserRolesPage = () => {
     } else {
       setLoading(false)
     }
-  }, [session, roles])
+  }, [session, roles, supabase])
 
   useEffect(() => {
     if (searchTerm.trim() === "") {
@@ -113,31 +136,70 @@ const UserRolesPage = () => {
     await signOut()
   }
 
-  const handleAddRole = () => {
+  const handleAddRole = async () => {
     // Validate inputs
     if (!newRole.name || !newRole.description) {
       setError("Please fill in all required fields")
       return
     }
 
-    // In a real app, you would save to your database
-    const roleToAdd = {
-      id: roles.length + 1,
-      name: newRole.name,
-      description: newRole.description,
-      userCount: 0,
-      permissions: newRole.permissions,
+    try {
+      // Check if the roles table exists
+      const { error: checkError } = await supabase
+        .from("roles")
+        .select("count", { count: "exact", head: true })
+        .limit(1)
+
+      if (checkError && checkError.message.includes("does not exist")) {
+        // Table doesn't exist, use mock data approach
+        const roleToAdd = {
+          id: roles.length + 1,
+          name: newRole.name,
+          description: newRole.description,
+          userCount: 0,
+          permissions: newRole.permissions,
+        }
+
+        setRoles([...roles, roleToAdd])
+      } else {
+        // Table exists, add to Supabase
+        const { data, error } = await supabase
+          .from("roles")
+          .insert({
+            name: newRole.name,
+            description: newRole.description,
+            permissions: newRole.permissions,
+            user_count: 0,
+          })
+          .select()
+
+        if (error) throw error
+
+        // Update local state with the new role
+        const newRoleWithId = data[0]
+        setRoles([
+          ...roles,
+          {
+            id: newRoleWithId.id,
+            name: newRoleWithId.name,
+            description: newRoleWithId.description,
+            userCount: newRoleWithId.user_count || 0,
+            permissions: newRoleWithId.permissions,
+          },
+        ])
+      }
+
+      // Reset form and close modal
+      setNewRole({
+        name: "",
+        description: "",
+        permissions: [],
+      })
+      setShowAddModal(false)
+    } catch (err) {
+      console.error("Error adding role:", err.message)
+      setError("Failed to add role. Please try again.")
     }
-
-    setRoles([...roles, roleToAdd])
-
-    // Reset form and close modal
-    setNewRole({
-      name: "",
-      description: "",
-      permissions: [],
-    })
-    setShowAddModal(false)
   }
 
   const handleEditRole = () => {

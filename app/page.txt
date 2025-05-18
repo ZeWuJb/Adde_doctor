@@ -1,0 +1,10 @@
+const Page = () => {
+  return (
+    <div>
+      <h1>Welcome to CareSync!</h1>
+      <p>Please sign in to continue.</p>
+    </div>
+  )
+}
+
+export default Page

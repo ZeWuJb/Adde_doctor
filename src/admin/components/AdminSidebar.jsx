@@ -3,8 +3,37 @@
 import { Users, Calendar, Settings, LogOut, User, PieChart, Activity, BookOpen, Shield, Server } from "lucide-react"
 import { Link } from "react-router-dom"
 import PropTypes from "prop-types"
+import { useEffect, useState } from "react"
+import { supabase } from "../../supabaseClient"
 
 const AdminSidebar = ({ sidebarOpen, session, userData, handleSignOut, currentPath }) => {
+  // Add state for admin data
+  const [adminData, setAdminData] = useState(null)
+  const [, setAdminLoading] = useState(true)
+
+  // Add useEffect to fetch admin data
+  useEffect(() => {
+    const fetchAdminData = async () => {
+      if (session && session.user) {
+        try {
+          const { data, error } = await supabase.from("admins").select("*").eq("user_id", session.user.id).single()
+
+          if (error) {
+            console.error("Error fetching admin data:", error.message)
+          } else {
+            setAdminData(data)
+          }
+        } catch (err) {
+          console.error("Error in fetchAdminData:", err.message)
+        } finally {
+          setAdminLoading(false)
+        }
+      }
+    }
+
+    fetchAdminData()
+  }, [session])
+
   return (
     <div
       className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform ${
@@ -18,22 +47,31 @@ const AdminSidebar = ({ sidebarOpen, session, userData, handleSignOut, currentPa
 
         <div className="flex flex-col flex-1 overflow-y-auto">
           <div className="flex flex-col items-center py-6 border-b">
-            <div className="relative w-20 h-20 mb-2 rounded-full bg-gray-200 flex items-center justify-center">
-              {session?.user?.user_metadata?.avatar_url ? (
-                <img
-                  src={session.user.user_metadata.avatar_url || "/placeholder.svg"}
-                  alt="Profile"
-                  className="w-full h-full rounded-full object-cover"
-                />
-              ) : (
-                <User size={32} className="text-gray-500" />
-              )}
+            {/* Update the component to use adminData if available */}
+            {/* In the profile section of the sidebar: */}
+            <div className="flex items-center p-4">
+              <div className="flex-shrink-0">
+                {adminData?.profile_url ? (
+                  <img
+                    className="h-10 w-10 rounded-full"
+                    src={adminData.profile_url || "/placeholder.svg"}
+                    alt={adminData.full_name}
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded-full bg-pink-100 flex items-center justify-center">
+                    <User className="h-6 w-6 text-pink-600" />
+                  </div>
+                )}
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-900">
+                  {adminData?.full_name || userData?.full_name || "Administrator"}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {adminData?.email || userData?.email || session?.user?.email || "admin@example.com"}
+                </p>
+              </div>
             </div>
-            {/* Update the user info display to use userData */}
-            <h2 className="text-lg font-medium">
-              {userData?.full_name || session?.userData?.full_name || "Administrator"}
-            </h2>
-            <p className="text-sm text-gray-500">{session?.user?.email}</p>
           </div>
 
           <nav className="px-4 py-6">

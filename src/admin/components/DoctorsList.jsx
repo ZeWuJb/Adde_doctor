@@ -1,112 +1,71 @@
-"use client"
-
+import { Mail, Calendar, Users } from "lucide-react"
 import PropTypes from "prop-types"
-import { useState } from "react"
-import { Edit, Trash2, Plus, Search } from "lucide-react"
 
-const DoctorsList = ({ doctors }) => {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [filteredDoctors, setFilteredDoctors] = useState(doctors)
+const DoctorsList = ({ doctors, loading = false }) => {
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+        <h2 className="text-xl font-semibold text-gray-800 mb-6">Top Doctors</h2>
+        <div className="space-y-6">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-start animate-pulse">
+              <div className="h-12 w-12 rounded-full bg-gray-200 mr-4"></div>
+              <div className="flex-1">
+                <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
+                <div className="h-3 bg-gray-200 rounded w-1/4 mb-2"></div>
+                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+              </div>
+              <div className="w-24">
+                <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                <div className="h-3 bg-gray-200 rounded"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
-  // Filter doctors when search term or doctors list changes
-  useState(() => {
-    if (searchTerm.trim() === "") {
-      setFilteredDoctors(doctors)
-    } else {
-      const filtered = doctors.filter(
-        (doctor) =>
-          doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          doctor.specialty.toLowerCase().includes(searchTerm.toLowerCase()),
-      )
-      setFilteredDoctors(filtered)
-    }
-  }, [searchTerm, doctors])
-
-  const handleSearchChange = (e) => {
-    setSearchTerm(e.target.value)
+  if (!doctors || doctors.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+        <h2 className="text-xl font-semibold text-gray-800 mb-6">Top Doctors</h2>
+        <div className="text-center py-8 text-gray-500">No doctors found in the system.</div>
+      </div>
+    )
   }
 
   return (
-    <div className="mb-8">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-gray-800">Doctors</h2>
-        <div className="flex space-x-2">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search doctors..."
-              value={searchTerm}
-              onChange={handleSearchChange}
-              className="pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
+    <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+      <h2 className="text-xl font-semibold text-gray-800 mb-6">Top Doctors</h2>
+      <div className="space-y-6">
+        {doctors.map((doctor) => (
+          <div key={doctor.id} className="flex items-start">
+            <img
+              src={doctor.avatar || "/placeholder.svg?height=48&width=48"}
+              alt={doctor.name}
+              className="h-12 w-12 rounded-full object-cover mr-4"
             />
-            <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+            <div className="flex-1">
+              <h3 className="text-lg font-medium text-gray-900">{doctor.name}</h3>
+              <p className="text-sm text-gray-600">{doctor.specialty}</p>
+              <div className="mt-2 flex items-center text-sm text-gray-500">
+                <Mail className="h-4 w-4 mr-1" />
+                <span className="truncate">{doctor.email || "No email provided"}</span>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="flex items-center justify-end text-sm text-gray-500 mb-1">
+                <Users className="h-4 w-4 mr-1" />
+                <span>{doctor.patients} patients</span>
+              </div>
+              <div className="flex items-center justify-end text-sm text-gray-500">
+                <Calendar className="h-4 w-4 mr-1" />
+                <span>{doctor.appointments} appointments</span>
+              </div>
+            </div>
           </div>
-          <button className="px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 transition-colors flex items-center">
-            <Plus className="w-5 h-5 mr-1" />
-            Add Doctor
-          </button>
-        </div>
-      </div>
-
-      <div className="overflow-hidden bg-white rounded-lg shadow">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Specialty
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Patients
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Appointments
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {filteredDoctors.length > 0 ? (
-              filteredDoctors.map((doctor) => (
-                <tr key={doctor.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10">
-                        <img className="h-10 w-10 rounded-full" src={doctor.avatar || "/placeholder.svg"} alt="" />
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{doctor.name}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{doctor.specialty}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{doctor.patients}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{doctor.appointments}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button className="text-blue-600 hover:text-blue-900 mr-3 flex items-center">
-                      <Edit className="w-4 h-4 mr-1" />
-                      Edit
-                    </button>
-                    <button className="text-red-600 hover:text-red-900 flex items-center">
-                      <Trash2 className="w-4 h-4 mr-1" />
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="5" className="px-6 py-4 text-center text-sm text-gray-500">
-                  No doctors found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        ))}
       </div>
     </div>
   )
@@ -115,14 +74,21 @@ const DoctorsList = ({ doctors }) => {
 DoctorsList.propTypes = {
   doctors: PropTypes.arrayOf(
     PropTypes.shape({
-      id: PropTypes.number.isRequired,
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
       name: PropTypes.string.isRequired,
-      specialty: PropTypes.string.isRequired,
-      patients: PropTypes.number.isRequired,
-      appointments: PropTypes.number.isRequired,
+      specialty: PropTypes.string,
+      email: PropTypes.string,
       avatar: PropTypes.string,
+      patients: PropTypes.number,
+      appointments: PropTypes.number,
     }),
-  ).isRequired,
+  ),
+  loading: PropTypes.bool,
+}
+
+DoctorsList.defaultProps = {
+  doctors: [],
+  loading: false,
 }
 
 export default DoctorsList

@@ -6,6 +6,7 @@ import { Search, Plus, Edit, Trash2, AlertCircle } from "lucide-react"
 import AdminSidebar from "../components/AdminSidebar"
 import AdminHeader from "../components/AdminHeader"
 import { useLocation } from "react-router-dom"
+import { supabase } from "../../supabaseClient"
 
 const DoctorsPage = () => {
   const { session, userData, signOut } = UserAuth()
@@ -17,96 +18,89 @@ const DoctorsPage = () => {
   const [error, setError] = useState(null)
   const location = useLocation()
 
-  useEffect(() => {
-    const fetchDoctors = async () => {
-      try {
-        // In a real app, this would be an API call to your backend
-        const mockDoctors = [
-          {
-            id: 1,
-            name: "Dr. Sarah Johnson",
-            specialty: "Cardiology",
-            email: "sarah.johnson@example.com",
-            phone: "+1 (555) 123-4567",
-            patients: 42,
-            appointments: 12,
-            joinDate: "2022-03-15",
-            status: "Active",
-            avatar: "https://randomuser.me/api/portraits/women/44.jpg",
-          },
-          {
-            id: 2,
-            name: "Dr. Michael Chen",
-            specialty: "Neurology",
-            email: "michael.chen@example.com",
-            phone: "+1 (555) 234-5678",
-            patients: 38,
-            appointments: 8,
-            joinDate: "2022-05-20",
-            status: "Active",
-            avatar: "https://randomuser.me/api/portraits/men/32.jpg",
-          },
-          {
-            id: 3,
-            name: "Dr. Emily Rodriguez",
-            specialty: "Pediatrics",
-            email: "emily.rodriguez@example.com",
-            phone: "+1 (555) 345-6789",
-            patients: 65,
-            appointments: 15,
-            joinDate: "2021-11-10",
-            status: "Active",
-            avatar: "https://randomuser.me/api/portraits/women/68.jpg",
-          },
-          {
-            id: 4,
-            name: "Dr. James Wilson",
-            specialty: "Orthopedics",
-            email: "james.wilson@example.com",
-            phone: "+1 (555) 456-7890",
-            patients: 29,
-            appointments: 7,
-            joinDate: "2023-01-05",
-            status: "Active",
-            avatar: "https://randomuser.me/api/portraits/men/75.jpg",
-          },
-          {
-            id: 5,
-            name: "Dr. Lisa Thompson",
-            specialty: "Dermatology",
-            email: "lisa.thompson@example.com",
-            phone: "+1 (555) 567-8901",
-            patients: 51,
-            appointments: 10,
-            joinDate: "2022-08-12",
-            status: "On Leave",
-            avatar: "https://randomuser.me/api/portraits/women/33.jpg",
-          },
-          {
-            id: 6,
-            name: "Dr. Robert Garcia",
-            specialty: "Ophthalmology",
-            email: "robert.garcia@example.com",
-            phone: "+1 (555) 678-9012",
-            patients: 33,
-            appointments: 6,
-            joinDate: "2023-02-28",
-            status: "Active",
-            avatar: "https://randomuser.me/api/portraits/men/42.jpg",
-          },
-        ]
+  // Add the fetchDoctors function outside of useEffect so it can be called from the subscription
+  const fetchDoctors = async () => {
+    try {
+      setLoading(true)
+      // Fetch doctors from Supabase
+      const { data: doctorsData, error: doctorsError } = await supabase
+        .from("doctors")
+        .select("*")
+        .order("created_at", { ascending: false })
 
-        setDoctors(mockDoctors)
-        setFilteredDoctors(mockDoctors)
-      } catch (err) {
-        console.error("Error fetching doctors:", err.message)
-        setError("Failed to fetch doctors data. Please try again later.")
-      } finally {
-        setLoading(false)
-      }
+      if (doctorsError) throw doctorsError
+
+      // Get appointment counts for each doctor
+      const doctorsWithCounts = await Promise.all(
+        doctorsData.map(async (doctor) => {
+          // Get appointment count
+          const { count: appointmentsCount, error: appointmentsError } = await supabase
+            .from("appointments")
+            .select("*", { count: "exact", head: true })
+            .eq("doctor_id", doctor.id)
+
+          if (appointmentsError) {
+            console.error("Error fetching appointment count:", appointmentsError.message)
+          }
+
+          // Get unique patient count
+          const { data: uniquePatients, error: patientsError } = await supabase
+            .from("appointments")
+            .select("mother_id")
+            .eq("doctor_id", doctor.id)
+
+          if (patientsError) {
+            console.error("Error fetching patient count:", patientsError.message)
+          }
+
+          const uniquePatientCount = uniquePatients ? new Set(uniquePatients.map((p) => p.mother_id)).size : 0
+
+          return {
+            id: doctor.id,
+            name: doctor.full_name,
+            specialty: doctor.speciality || "General",
+            email: doctor.email,
+            phone: doctor.phone_number || "N/A",
+            patients: uniquePatientCount,
+            appointments: appointmentsCount || 0,
+            joinDate: doctor.created_at,
+            status: doctor.status || "Active",
+            avatar: doctor.profile_url || "https://randomuser.me/api/portraits/men/32.jpg",
+          }
+        }),
+      )
+
+      setDoctors(doctorsWithCounts)
+      setFilteredDoctors(doctorsWithCounts)
+    } catch (err) {
+      console.error("Error fetching doctors:", err.message)
+      setError("Failed to fetch doctors data. Please try again later.")
+    } finally {
+      setLoading(false)
     }
+  }
 
+  // Update the useEffect to fetch real data from Supabase instead of using mock data
+  useEffect(() => {
     fetchDoctors()
+  }, [])
+
+  // Add a subscription for real-time updates
+  useEffect(() => {
+    // Set up real-time subscription for doctors
+    const doctorsSubscription = supabase
+      .channel("doctors-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "doctors" }, (payload) => {
+        console.log("Doctor change received:", payload)
+        // Refresh the doctors data when changes occur
+        fetchDoctors()
+      })
+      .subscribe()
+
+    // Cleanup subscription on component unmount
+    return () => {
+      supabase.removeChannel(doctorsSubscription)
+    }
   }, [])
 
   useEffect(() => {
