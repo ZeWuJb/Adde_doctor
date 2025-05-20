@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { UserAuth } from "../context/AuthContext"
 import { useLocation } from "react-router-dom"
 import AdminSidebar from "./components/AdminSidebar"
@@ -8,97 +8,20 @@ import AdminHeader from "./components/AdminHeader"
 import AdminStats from "./components/AdminStats"
 import DoctorsList from "./components/DoctorsList"
 import RecentActivity from "./components/RecentActivity"
-import { supabase } from "../supabaseClient"
+import { useAdmin } from "../hooks/useAdmin"
 
 const AdminDashboard = () => {
   // Update to use userData directly from context
-  const { session, userData, loading, signOut } = UserAuth()
+  const { session, userData, signOut } = UserAuth()
+  const { loading, error, doctors, stats } = useAdmin()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [doctors, setDoctors] = useState([])
-  const [dashboardLoading, setDashboardLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [stats, setStats] = useState({
-    doctorsCount: 0,
-    patientsCount: 0,
-    appointmentsCount: 0,
-    articlesCount: 0,
-  })
   const location = useLocation()
-
-  // Update the useEffect to fetch real data from Supabase instead of using mock data
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        // Fetch doctors from Supabase
-        const { data: doctorsData, error: doctorsError } = await supabase
-          .from("doctors")
-          .select("*")
-          .limit(4)
-          .order("created_at", { ascending: false })
-
-        if (doctorsError) throw doctorsError
-
-        // Transform the data to match the expected format
-        const formattedDoctors = doctorsData.map((doctor) => ({
-          id: doctor.id,
-          name: doctor.full_name,
-          specialty: doctor.speciality || "General",
-          patients: doctor.patients_count || 0,
-          appointments: doctor.appointments_count || 0,
-          avatar: doctor.profile_url || "https://randomuser.me/api/portraits/men/32.jpg",
-        }))
-
-        setDoctors(formattedDoctors)
-
-        // Fetch actual counts from database
-        try {
-          // Get doctors count
-          const { count: doctorsCount } = await supabase.from("doctors").select("*", { count: "exact", head: true })
-
-          // Get patients (mothers) count
-          const { count: patientsCount } = await supabase.from("mothers").select("*", { count: "exact", head: true })
-
-          // Get appointments count
-          const { count: appointmentsCount } = await supabase
-            .from("appointments")
-            .select("*", { count: "exact", head: true })
-
-          // Get articles count
-          const { count: articlesCount } = await supabase
-            .from("education_articles")
-            .select("*", { count: "exact", head: true })
-
-          setStats({
-            doctorsCount: doctorsCount || 0,
-            patientsCount: patientsCount || 0,
-            appointmentsCount: appointmentsCount || 0,
-            articlesCount: articlesCount || 0,
-          })
-        } catch (err) {
-          console.error("Error fetching stats:", err.message)
-        }
-      } catch (err) {
-        console.error("Error fetching dashboard data:", err.message)
-        setError("Failed to fetch dashboard data. Please try again later.")
-      } finally {
-        setDashboardLoading(false)
-      }
-    }
-
-    if (session && session.role === "admin") {
-      fetchDashboardData()
-    } else {
-      setDashboardLoading(false)
-    }
-  }, [session])
-
-  console.log("AdminDashboard - session:", session, "loading:", loading, "dashboardLoading:", dashboardLoading)
 
   const handleSignOut = async () => {
     await signOut()
   }
 
-  if (loading || dashboardLoading) {
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
@@ -141,12 +64,6 @@ const AdminDashboard = () => {
     )
   }
 
-  console.log("AdminDashboard - session details:", {
-    role: session.role,
-    userData: session.userData,
-    user: session.user,
-  })
-
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
@@ -174,7 +91,7 @@ const AdminDashboard = () => {
           <AdminStats stats={stats} />
 
           {/* Doctors List */}
-          <DoctorsList doctors={doctors} />
+          <DoctorsList doctors={doctors.slice(0, 4)} />
 
           {/* Recent Activity */}
           <RecentActivity />

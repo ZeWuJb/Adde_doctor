@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { UserAuth } from "../../context/AuthContext"
 import { useLocation } from "react-router-dom"
 import AdminSidebar from "../components/AdminSidebar"
@@ -19,19 +19,14 @@ import {
   ArrowDownCircle,
   User,
 } from "lucide-react"
-import { supabase } from "../../supabaseClient"
+import { useAdmin } from "../../hooks/useAdmin"
+import { setError } from "react" // Declare setError variable
 
 const SystemMonitoringPage = () => {
   const { session, userData, signOut } = UserAuth()
+  const { loading, error, systemStatus, refreshData } = useAdmin()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [systemStatus, setSystemStatus] = useState({
-    database: { status: "healthy", latency: 45, uptime: 99.98 },
-    api: { status: "healthy", latency: 120, uptime: 99.95 },
-    storage: { status: "healthy", usage: 68, total: 500 },
-    auth: { status: "healthy", activeUsers: 42, totalUsers: 189 },
-  })
+  const [refreshing, setRefreshing] = useState(false)
   const [recentLogs, setRecentLogs] = useState([
     {
       id: 1,
@@ -69,115 +64,7 @@ const SystemMonitoringPage = () => {
       message: "New user registered",
     },
   ])
-  const [refreshing, setRefreshing] = useState(false)
   const location = useLocation()
-
-  const fetchSystemStatus = async () => {
-    try {
-      setLoading(true)
-
-      // Simulate database query to check connection
-      const startTime = Date.now()
-      await supabase.from("admins").select("*", { count: "exact", head: true })
-
-      const endTime = Date.now()
-      const dbLatency = endTime - startTime
-
-      // Get storage usage (this is a mock since Supabase doesn't expose this directly)
-      const storageUsage = Math.floor(Math.random() * 20) + 60 // Mock value between 60-80GB
-
-      // Get user counts
-      const { count: totalUsers, error: usersError } = await supabase
-        .from("mothers")
-        .select("*", { count: "exact", head: true })
-
-      if (usersError) throw usersError
-
-      // Get active users (users who have logged in within the last 24 hours - mock data)
-      const activeUsers = Math.floor(totalUsers * 0.3) // Assume 30% of users are active
-
-      // Get API latency (mock data)
-      const apiLatency = Math.floor(Math.random() * 100) + 80 // 80-180ms
-
-      // Update system status with real database latency and user counts
-      setSystemStatus({
-        database: {
-          status: dbLatency > 500 ? "warning" : "healthy",
-          latency: dbLatency,
-          uptime: 99.98,
-        },
-        api: {
-          status: apiLatency > 150 ? "warning" : "healthy",
-          latency: apiLatency,
-          uptime: 99.95,
-        },
-        storage: {
-          status: storageUsage > 400 ? "warning" : "healthy",
-          usage: storageUsage,
-          total: 500,
-        },
-        auth: {
-          status: "healthy",
-          activeUsers: activeUsers,
-          totalUsers: totalUsers || 0,
-        },
-      })
-
-      // Fetch recent system logs (mock data since we don't have a real logs table)
-      const mockLogs = [
-        {
-          id: 1,
-          timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-          level: "info",
-          service: "auth",
-          message: "User login successful",
-        },
-        {
-          id: 2,
-          timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-          level: "warning",
-          service: "database",
-          message: "High database query latency detected",
-        },
-        {
-          id: 3,
-          timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-          level: "error",
-          service: "api",
-          message: "API endpoint /api/appointments/create returned 500 error",
-        },
-        {
-          id: 4,
-          timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-          level: "info",
-          service: "storage",
-          message: "Backup completed successfully",
-        },
-        {
-          id: 5,
-          timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-          level: "info",
-          service: "auth",
-          message: "New user registered",
-        },
-      ]
-
-      setRecentLogs(mockLogs)
-    } catch (err) {
-      console.error("Error fetching system status:", err.message)
-      setError("Failed to fetch system status. Please try again later.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    if (session && session.role === "admin") {
-      fetchSystemStatus()
-    } else {
-      setLoading(false)
-    }
-  }, [session])
 
   const handleSignOut = async () => {
     await signOut()
@@ -186,7 +73,7 @@ const SystemMonitoringPage = () => {
   const handleRefresh = async () => {
     setRefreshing(true)
     try {
-      await fetchSystemStatus()
+      await refreshData()
 
       // Add a new log entry
       const newLog = {
@@ -200,7 +87,6 @@ const SystemMonitoringPage = () => {
       setRecentLogs([newLog, ...recentLogs.slice(0, 9)])
     } catch (err) {
       console.error("Error refreshing system status:", err.message)
-      setError("Failed to refresh system status. Please try again later.")
     } finally {
       setRefreshing(false)
     }

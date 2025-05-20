@@ -6,18 +6,17 @@ import { useLocation } from "react-router-dom"
 import AdminSidebar from "../components/AdminSidebar"
 import AdminHeader from "../components/AdminHeader"
 import { BookOpen, Plus, Search, Edit, Trash2, Tag, Calendar, Filter, ChevronDown } from "lucide-react"
-import { supabase } from "../../supabaseClient"
+import { useAdmin } from "../../hooks/useAdmin"
+import { setError } from "react" // Import setError from react or declare it
 
 const ContentManagementPage = () => {
   const { session, userData, signOut } = UserAuth()
+  const { loading, error, articles, addArticle, deleteArticle } = useAdmin()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [articles, setArticles] = useState([])
   const [filteredArticles, setFilteredArticles] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [showFilters, setShowFilters] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState("all")
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [newArticle, setNewArticle] = useState({
     title: "",
@@ -28,36 +27,6 @@ const ContentManagementPage = () => {
   })
   const location = useLocation()
   const [success, setSuccess] = useState(null)
-
-  const fetchArticles = async () => {
-    try {
-      setLoading(true)
-
-      // Fetch from Supabase
-      const { data, error } = await supabase
-        .from("education_articles")
-        .select("*")
-        .order("created_at", { ascending: false })
-
-      if (error) throw error
-
-      setArticles(data)
-      setFilteredArticles(data)
-    } catch (err) {
-      console.error("Error fetching articles:", err.message)
-      setError("Failed to fetch articles. Please try again later.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    if (session && session.role === "admin") {
-      fetchArticles()
-    } else {
-      setLoading(false)
-    }
-  }, [session])
 
   useEffect(() => {
     if (articles.length === 0) {
@@ -100,38 +69,32 @@ const ContentManagementPage = () => {
         return
       }
 
-      // In a real app, insert into your Supabase table
-      const { data, error } = await supabase
-        .from("education_articles")
-        .insert({
-          title: newArticle.title,
-          summary: newArticle.summary,
-          content: newArticle.content,
-          category: newArticle.category,
-          tags: newArticle.tags
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter((tag) => tag),
-        })
-        .select()
-
-      if (error) throw error
-
-      // Add the new article to the state
-      const addedArticle = data[0]
-
-      setArticles([addedArticle, ...articles])
-      setSuccess("Article added successfully")
-
-      // Reset form and close modal
-      setNewArticle({
-        title: "",
-        summary: "",
-        content: "",
-        category: "pregnancy",
-        tags: "",
+      const result = await addArticle({
+        title: newArticle.title,
+        summary: newArticle.summary,
+        content: newArticle.content,
+        category: newArticle.category,
+        tags: newArticle.tags
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter((tag) => tag),
       })
-      setShowAddModal(false)
+
+      if (result.success) {
+        setSuccess("Article added successfully")
+
+        // Reset form and close modal
+        setNewArticle({
+          title: "",
+          summary: "",
+          content: "",
+          category: "pregnancy",
+          tags: "",
+        })
+        setShowAddModal(false)
+      } else {
+        setError("Failed to add article. Please try again.")
+      }
     } catch (err) {
       console.error("Error adding article:", err.message)
       setError("Failed to add article. Please try again.")
@@ -140,14 +103,13 @@ const ContentManagementPage = () => {
 
   const handleDeleteArticle = async (id) => {
     try {
-      // In a real app, delete from your Supabase table
-      const { error } = await supabase.from("education_articles").delete().eq("id", id)
+      const result = await deleteArticle(id)
 
-      if (error) throw error
-
-      // Update state
-      setArticles(articles.filter((article) => article.id !== id))
-      setSuccess("Article deleted successfully")
+      if (result.success) {
+        setSuccess("Article deleted successfully")
+      } else {
+        setError("Failed to delete article. Please try again.")
+      }
     } catch (err) {
       console.error("Error deleting article:", err.message)
       setError("Failed to delete article. Please try again.")
@@ -161,23 +123,6 @@ const ContentManagementPage = () => {
       day: "numeric",
     })
   }
-
-  useEffect(() => {
-    // Set up real-time subscription for education_articles
-    const articlesSubscription = supabase
-      .channel("articles-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "education_articles" }, (payload) => {
-        console.log("Article change received:", payload)
-        // Refresh the articles data when changes occur
-        fetchArticles()
-      })
-      .subscribe()
-
-    // Cleanup subscription on component unmount
-    return () => {
-      supabase.removeChannel(articlesSubscription)
-    }
-  }, [])
 
   if (loading) {
     return (

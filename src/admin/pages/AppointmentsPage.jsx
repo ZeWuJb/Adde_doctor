@@ -1,101 +1,26 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { UserAuth } from "../../context/AuthContext"
 import { Search, Filter, Calendar, AlertCircle, ChevronDown } from "lucide-react"
 import AdminSidebar from "../components/AdminSidebar"
 import AdminHeader from "../components/AdminHeader"
 import { useLocation } from "react-router-dom"
-import { supabase } from "../../supabaseClient"
+import { useAdmin } from "../../hooks/useAdmin"
 
 const AppointmentsPage = () => {
   const { session, userData, signOut } = UserAuth()
+  const { loading, error, appointments } = useAdmin()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [appointments, setAppointments] = useState([])
   const [filteredAppointments, setFilteredAppointments] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [dateFilter, setDateFilter] = useState("all")
   const [showFilters, setShowFilters] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   const location = useLocation()
 
-  // Add the fetchAppointments function outside of useEffect so it can be called from the subscription
-  const fetchAppointments = async () => {
-    try {
-      setLoading(true)
-      // Fetch appointments from Supabase
-      const { data: appointmentsData, error: appointmentsError } = await supabase
-        .from("appointments")
-        .select(`
-          id, 
-          requested_time, 
-          status, 
-          payment_status,
-          video_conference_link,
-          doctors:doctor_id (
-            id,
-            full_name,
-            speciality,
-            profile_url
-          ),
-          mothers:mother_id (
-            user_id,
-            full_name,
-            profile_url
-          )
-        `)
-        .order("requested_time", { ascending: false })
-
-      if (appointmentsError) throw appointmentsError
-
-      // Transform the data to match the expected format
-      const formattedAppointments = appointmentsData.map((appointment) => ({
-        id: appointment.id,
-        patientName: appointment.mothers?.full_name || "Unknown Patient",
-        doctorName: appointment.doctors?.full_name || "Unknown Doctor",
-        doctorSpecialty: appointment.doctors?.speciality || "General",
-        date: appointment.requested_time,
-        status: appointment.status,
-        patientAvatar: appointment.mothers?.profile_url || "https://randomuser.me/api/portraits/women/44.jpg",
-        doctorAvatar: appointment.doctors?.profile_url || "https://randomuser.me/api/portraits/women/68.jpg",
-      }))
-
-      setAppointments(formattedAppointments)
-      setFilteredAppointments(formattedAppointments)
-    } catch (err) {
-      console.error("Error fetching appointments:", err.message)
-      setError("Failed to fetch appointments data. Please try again later.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Update the useEffect to fetch real data from Supabase instead of using mock data
-  useEffect(() => {
-    fetchAppointments()
-  }, [])
-
-  // Add a subscription for real-time updates
-  useEffect(() => {
-    // Set up real-time subscription for appointments
-    const appointmentsSubscription = supabase
-      .channel("appointments-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, (payload) => {
-        console.log("Appointment change received:", payload)
-        // Refresh the appointments data when changes occur
-        fetchAppointments()
-      })
-      .subscribe()
-
-    // Cleanup subscription on component unmount
-    return () => {
-      supabase.removeChannel(appointmentsSubscription)
-    }
-  }, [])
-
-  useEffect(() => {
+  // Update filteredAppointments when appointments, searchTerm, statusFilter, or dateFilter changes
+  useState(() => {
     if (!appointments.length) {
       setFilteredAppointments([])
       return

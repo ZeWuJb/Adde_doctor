@@ -1,109 +1,23 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { UserAuth } from "../../context/AuthContext"
 import { Search, Plus, Edit, Trash2, AlertCircle } from "lucide-react"
 import AdminSidebar from "../components/AdminSidebar"
 import AdminHeader from "../components/AdminHeader"
 import { useLocation } from "react-router-dom"
-import { supabase } from "../../supabaseClient"
+import { useAdmin } from "../../hooks/useAdmin"
 
 const DoctorsPage = () => {
   const { session, userData, signOut } = UserAuth()
+  const { loading, error, doctors, deleteDoctor } = useAdmin()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [doctors, setDoctors] = useState([])
-  const [filteredDoctors, setFilteredDoctors] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [filteredDoctors, setFilteredDoctors] = useState([])
   const location = useLocation()
 
-  // Add the fetchDoctors function outside of useEffect so it can be called from the subscription
-  const fetchDoctors = async () => {
-    try {
-      setLoading(true)
-      // Fetch doctors from Supabase
-      const { data: doctorsData, error: doctorsError } = await supabase
-        .from("doctors")
-        .select("*")
-        .order("created_at", { ascending: false })
-
-      if (doctorsError) throw doctorsError
-
-      // Get appointment counts for each doctor
-      const doctorsWithCounts = await Promise.all(
-        doctorsData.map(async (doctor) => {
-          // Get appointment count
-          const { count: appointmentsCount, error: appointmentsError } = await supabase
-            .from("appointments")
-            .select("*", { count: "exact", head: true })
-            .eq("doctor_id", doctor.id)
-
-          if (appointmentsError) {
-            console.error("Error fetching appointment count:", appointmentsError.message)
-          }
-
-          // Get unique patient count
-          const { data: uniquePatients, error: patientsError } = await supabase
-            .from("appointments")
-            .select("mother_id")
-            .eq("doctor_id", doctor.id)
-
-          if (patientsError) {
-            console.error("Error fetching patient count:", patientsError.message)
-          }
-
-          const uniquePatientCount = uniquePatients ? new Set(uniquePatients.map((p) => p.mother_id)).size : 0
-
-          return {
-            id: doctor.id,
-            name: doctor.full_name,
-            specialty: doctor.speciality || "General",
-            email: doctor.email,
-            phone: doctor.phone_number || "N/A",
-            patients: uniquePatientCount,
-            appointments: appointmentsCount || 0,
-            joinDate: doctor.created_at,
-            status: doctor.status || "Active",
-            avatar: doctor.profile_url || "https://randomuser.me/api/portraits/men/32.jpg",
-          }
-        }),
-      )
-
-      setDoctors(doctorsWithCounts)
-      setFilteredDoctors(doctorsWithCounts)
-    } catch (err) {
-      console.error("Error fetching doctors:", err.message)
-      setError("Failed to fetch doctors data. Please try again later.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Update the useEffect to fetch real data from Supabase instead of using mock data
-  useEffect(() => {
-    fetchDoctors()
-  }, [])
-
-  // Add a subscription for real-time updates
-  useEffect(() => {
-    // Set up real-time subscription for doctors
-    const doctorsSubscription = supabase
-      .channel("doctors-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "doctors" }, (payload) => {
-        console.log("Doctor change received:", payload)
-        // Refresh the doctors data when changes occur
-        fetchDoctors()
-      })
-      .subscribe()
-
-    // Cleanup subscription on component unmount
-    return () => {
-      supabase.removeChannel(doctorsSubscription)
-    }
-  }, [])
-
-  useEffect(() => {
+  // Filter doctors based on search term
+  useState(() => {
     if (searchTerm.trim() === "") {
       setFilteredDoctors(doctors)
     } else {
@@ -123,6 +37,14 @@ const DoctorsPage = () => {
 
   const handleSignOut = async () => {
     await signOut()
+  }
+
+  const handleDeleteDoctor = async (id) => {
+    const result = await deleteDoctor(id)
+    if (!result.success) {
+      // Handle error
+      console.error("Failed to delete doctor:", result.error)
+    }
   }
 
   const formatDate = (dateString) => {
@@ -256,7 +178,10 @@ const DoctorsPage = () => {
                           <Edit className="h-4 w-4 inline mr-1" />
                           Edit
                         </button>
-                        <button className="text-red-600 hover:text-red-900">
+                        <button
+                          className="text-red-600 hover:text-red-900"
+                          onClick={() => handleDeleteDoctor(doctor.id)}
+                        >
                           <Trash2 className="h-4 w-4 inline mr-1" />
                           Delete
                         </button>

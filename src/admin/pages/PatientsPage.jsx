@@ -6,49 +6,20 @@ import { useLocation } from "react-router-dom"
 import AdminSidebar from "../components/AdminSidebar"
 import AdminHeader from "../components/AdminHeader"
 import { Search, Filter, ChevronDown, User, AlertCircle } from "lucide-react"
-import { supabase } from "../../supabaseClient"
+import { useAdmin } from "../../hooks/useAdmin"
 
 const PatientsPage = () => {
   const { session, userData, signOut } = UserAuth()
+  const { loading, error, patients } = useAdmin()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [patients, setPatients] = useState([])
   const [filteredPatients, setFilteredPatients] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [showFilters, setShowFilters] = useState(false)
   const [ageFilter, setAgeFilter] = useState("all")
   const [pregnancyWeekFilter, setPregnancyWeekFilter] = useState("all")
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   const [selectedPatient, setSelectedPatient] = useState(null)
   const [showPatientDetails, setShowPatientDetails] = useState(false)
   const location = useLocation()
-
-  useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        setLoading(true)
-
-        // In a real app, fetch from your Supabase table
-        const { data, error } = await supabase.from("mothers").select("*").order("created_at", { ascending: false })
-
-        if (error) throw error
-
-        setPatients(data)
-        setFilteredPatients(data)
-      } catch (err) {
-        console.error("Error fetching patients:", err.message)
-        setError("Failed to fetch patients. Please try again later.")
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    if (session && session.role === "admin") {
-      fetchPatients()
-    } else {
-      setLoading(false)
-    }
-  }, [session])
 
   useEffect(() => {
     if (patients.length === 0) {
