@@ -1,5 +1,3 @@
-"use client"
-
 import { createContext, useState, useEffect, useCallback } from "react"
 import PropTypes from "prop-types"
 import { supabase } from "../supabaseClient"
