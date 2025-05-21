@@ -15,16 +15,18 @@ export const AuthContextProvider = ({ children }) => {
 
   useEffect(() => {
     console.log("Auth effect initialized")
+    let isMounted = true
 
-    // Try to get cached session first
+    // Try to get cached session first - do this synchronously for immediate UI update
     try {
       const cachedSessionStr = localStorage.getItem(SESSION_CACHE_KEY)
       if (cachedSessionStr) {
         const cachedSession = JSON.parse(cachedSessionStr)
         // Check if cached session is still valid
         if (cachedSession.expires_at && new Date(cachedSession.expires_at * 1000) > new Date()) {
-          console.log("Using cached session")
+          console.log("Using cached session immediately")
           setSession(cachedSession)
+          // Don't set loading to false yet - we'll still verify with the server
         } else {
           localStorage.removeItem(SESSION_CACHE_KEY)
         }
@@ -43,21 +45,52 @@ export const AuthContextProvider = ({ children }) => {
         if (error) throw error
 
         if (session) {
-          console.log("Initial session found.")
-          setSession(session)
+          console.log("Initial session found from server.")
+
+          // Get the role from the cached session if available
+          let role = null
+          try {
+            const cachedSessionStr = localStorage.getItem(SESSION_CACHE_KEY)
+            if (cachedSessionStr) {
+              const cachedSession = JSON.parse(cachedSessionStr)
+              if (cachedSession.role && cachedSession.user?.id === session.user.id) {
+                role = cachedSession.role
+                console.log("Using role from cached session:", role)
+              }
+            }
+          } catch (err) {
+            console.error("Error reading role from cached session:", err)
+          }
+
+          // If we have a role, add it to the session
+          const sessionToStore = role ? { ...session, role } : session
+
+          if (isMounted) {
+            setSession(sessionToStore)
+          }
+
           // Cache the session
-          localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session))
+          localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(sessionToStore))
         } else {
-          console.log("No initial session found.")
-          setSession(null)
+          console.log("No session found from server.")
+          if (isMounted) {
+            setSession(null)
+          }
           localStorage.removeItem(SESSION_CACHE_KEY)
         }
       } catch (err) {
         console.error("Error fetching initial session:", err.message)
-        setSession(null)
+        if (isMounted) {
+          // Don't clear session if we already have a valid cached session
+          if (!localStorage.getItem(SESSION_CACHE_KEY)) {
+            setSession(null)
+          }
+        }
       } finally {
-        setLoading(false)
-        console.log("Initial loading state set to false")
+        if (isMounted) {
+          setLoading(false)
+          console.log("Initial loading state set to false")
+        }
       }
     }
 
@@ -66,11 +99,32 @@ export const AuthContextProvider = ({ children }) => {
     const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
       console.log("Auth state changed:", event, { sessionExists: !!newSession })
 
+      if (!isMounted) return
+
       if (newSession) {
         console.log("New session detected.")
-        setSession(newSession)
+
+        // Get the role from the cached session if available
+        let role = null
+        try {
+          const cachedSessionStr = localStorage.getItem(SESSION_CACHE_KEY)
+          if (cachedSessionStr) {
+            const cachedSession = JSON.parse(cachedSessionStr)
+            if (cachedSession.role && cachedSession.user?.id === newSession.user.id) {
+              role = cachedSession.role
+              console.log("Using role from cached session for auth change:", role)
+            }
+          }
+        } catch (err) {
+          console.error("Error reading role from cached session:", err)
+        }
+
+        // If we have a role, add it to the session
+        const sessionToStore = role ? { ...newSession, role } : newSession
+
+        setSession(sessionToStore)
         // Cache the session
-        localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(newSession))
+        localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(sessionToStore))
       } else {
         console.log("No session found - clearing auth state.")
         setSession(null)
@@ -82,8 +136,9 @@ export const AuthContextProvider = ({ children }) => {
     })
 
     return () => {
+      isMounted = false
       console.log("Cleaning up auth listener...")
-      listener.subscription?.unsubscribe()
+      listener?.subscription?.unsubscribe()
       console.log("Auth listener unsubscribed")
     }
   }, [])

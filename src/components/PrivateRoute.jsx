@@ -6,49 +6,16 @@ import { UserAuth } from "../context/AuthContext"
 import { useEffect, useState } from "react"
 
 const PrivateRoute = () => {
-  const { session, loading, refreshSession } = UserAuth()
+  const { session, loading } = UserAuth()
   const location = useLocation()
   const [redirectPath, setRedirectPath] = useState(null)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [lastAttempt, setLastAttempt] = useState(0)
   const [localLoading, setLocalLoading] = useState(true)
-
-  // Attempt to refresh session if needed
-  useEffect(() => {
-    const attemptSessionRefresh = async () => {
-      // Prevent multiple refresh attempts in quick succession
-      const now = Date.now()
-      if (now - lastAttempt < 5000) return // Don't try more than once every 5 seconds
-
-      setLastAttempt(now)
-
-      if (!session && !loading && !isRefreshing) {
-        console.log("No session, attempting to refresh...")
-        setIsRefreshing(true)
-
-        try {
-          const result = await refreshSession()
-          console.log("Session refresh result:", result.success)
-        } catch (err) {
-          console.error("Error refreshing session:", err)
-        } finally {
-          setIsRefreshing(false)
-          setLocalLoading(false)
-        }
-      } else if (!loading) {
-        // If not loading and we have a session or definitely don't have one
-        setLocalLoading(false)
-      }
-    }
-
-    attemptSessionRefresh()
-  }, [session, loading, refreshSession, isRefreshing, lastAttempt])
 
   // Handle route access based on user role
   useEffect(() => {
     console.log("PrivateRoute - Loading:", loading, "Session:", !!session, "Path:", location.pathname)
 
-    if (!loading && !isRefreshing && session) {
+    if (!loading && session) {
       const currentPath = location.pathname
 
       const adminRoutes = ["/admin-dashboard", "/admin", /^\/admin(\/.*)?$/]
@@ -91,8 +58,13 @@ const PrivateRoute = () => {
       } else {
         setRedirectPath(null)
       }
+
+      setLocalLoading(false)
+    } else if (!loading) {
+      // If not loading and we don't have a session
+      setLocalLoading(false)
     }
-  }, [location.pathname, session, loading, isRefreshing])
+  }, [location.pathname, session, loading])
 
   // Set a maximum timeout to prevent infinite loading
   useEffect(() => {
@@ -101,13 +73,13 @@ const PrivateRoute = () => {
         console.log("Loading timeout reached, forcing state update")
         setLocalLoading(false)
       }
-    }, 5000) // 5 second maximum loading time
+    }, 2000) // 2 second maximum loading time
 
     return () => clearTimeout(timeoutId)
   }, [localLoading])
 
-  // Show loading state while checking session or refreshing
-  if (loading || isRefreshing || localLoading) {
+  // Show loading state while checking session
+  if (loading || localLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
@@ -116,9 +88,9 @@ const PrivateRoute = () => {
     )
   }
 
-  // If no session after refresh attempt, redirect to signin
+  // If no session, redirect to signin
   if (!session) {
-    console.log("No session after refresh, redirecting to /signin")
+    console.log("No session, redirecting to /signin")
     // Save the current location to redirect back after login
     return <Navigate to="/signin" replace state={{ from: location }} />
   }
