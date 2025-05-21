@@ -6,12 +6,33 @@ import { supabase } from "../supabaseClient"
 
 const AuthContext = createContext()
 
+// Simple session cache key
+const SESSION_CACHE_KEY = "caresync_session"
+
 export const AuthContextProvider = ({ children }) => {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     console.log("Auth effect initialized")
+
+    // Try to get cached session first
+    try {
+      const cachedSessionStr = localStorage.getItem(SESSION_CACHE_KEY)
+      if (cachedSessionStr) {
+        const cachedSession = JSON.parse(cachedSessionStr)
+        // Check if cached session is still valid
+        if (cachedSession.expires_at && new Date(cachedSession.expires_at * 1000) > new Date()) {
+          console.log("Using cached session")
+          setSession(cachedSession)
+        } else {
+          localStorage.removeItem(SESSION_CACHE_KEY)
+        }
+      }
+    } catch (err) {
+      console.error("Error reading cached session:", err)
+      localStorage.removeItem(SESSION_CACHE_KEY)
+    }
 
     const fetchInitialSession = async () => {
       try {
@@ -24,9 +45,12 @@ export const AuthContextProvider = ({ children }) => {
         if (session) {
           console.log("Initial session found.")
           setSession(session)
+          // Cache the session
+          localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session))
         } else {
           console.log("No initial session found.")
           setSession(null)
+          localStorage.removeItem(SESSION_CACHE_KEY)
         }
       } catch (err) {
         console.error("Error fetching initial session:", err.message)
@@ -45,9 +69,12 @@ export const AuthContextProvider = ({ children }) => {
       if (newSession) {
         console.log("New session detected.")
         setSession(newSession)
+        // Cache the session
+        localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(newSession))
       } else {
         console.log("No session found - clearing auth state.")
         setSession(null)
+        localStorage.removeItem(SESSION_CACHE_KEY)
       }
 
       setLoading(false)
@@ -102,6 +129,9 @@ export const AuthContextProvider = ({ children }) => {
       // Step 3: Set the session with the role
       const sessionWithRole = { ...authData, role }
       setSession(sessionWithRole)
+
+      // Cache the session
+      localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(sessionWithRole))
 
       return { success: true, data: sessionWithRole }
     } catch (err) {
@@ -159,6 +189,9 @@ export const AuthContextProvider = ({ children }) => {
       const sessionWithRole = { ...authData, role }
       setSession(sessionWithRole)
 
+      // Cache the session
+      localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(sessionWithRole))
+
       return { success: true, data: sessionWithRole }
     } catch (err) {
       console.error("Sign-in process failed:", err.message)
@@ -173,6 +206,7 @@ export const AuthContextProvider = ({ children }) => {
 
       console.log("Clearing session...")
       setSession(null)
+      localStorage.removeItem(SESSION_CACHE_KEY)
       console.log("User signed out successfully.")
       return { success: true }
     } catch (err) {
@@ -181,7 +215,11 @@ export const AuthContextProvider = ({ children }) => {
     }
   }
 
-  console.log("Rendering AuthContextProvider with state:", { sessionExists: !!session, loadingState: loading })
+  console.log("Rendering AuthContextProvider with state:", {
+    sessionExists: !!session,
+    loadingState: loading,
+    role: session?.role,
+  })
 
   return (
     <AuthContext.Provider value={{ session, signUpNewUser, signInUser, signOut, loading }}>

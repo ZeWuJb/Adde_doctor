@@ -20,6 +20,7 @@ const Signin = () => {
     setError(null)
 
     try {
+      console.log("Starting sign-in process for:", email, role)
       const result = await signInUser(email, password, role)
 
       if (result.success) {
@@ -34,12 +35,12 @@ const Signin = () => {
         }
       } else {
         console.error("Sign-in failed:", result.error)
-        setError(result.error.message || "Sign-in failed. Please check your credentials and try again.")
+        setError(result.error.message || "Sign-in failed. Please check your credentials.")
+        setLoading(false)
       }
     } catch (err) {
       console.error("Unexpected error during sign-in:", err)
       setError(`An unexpected error occurred: ${err.message}`)
-    } finally {
       setLoading(false)
     }
   }
@@ -152,7 +153,7 @@ const Signin = () => {
         {/* Sign-up Redirect */}
         <div className="text-center mt-6">
           <p className="text-sm text-gray-600">
-            Don`t have an account?{" "}
+            Don&apos;t have an account?{" "}
             <Link to="/signup" className="font-medium text-pink-600 hover:text-pink-500">
               Sign up
             </Link>
@@ -164,4 +165,3 @@ const Signin = () => {
 }
 
 export default Signin
-

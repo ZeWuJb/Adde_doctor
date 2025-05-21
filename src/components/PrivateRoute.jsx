@@ -1,25 +1,57 @@
-"use client";
+// PrivateRoute.jsx
+"use client"
 
-import { Outlet, Navigate, useLocation } from "react-router-dom";
-import { UserAuth } from "../context/AuthContext";
-import { useEffect, useState } from "react";
+import { Outlet, Navigate, useLocation } from "react-router-dom"
+import { UserAuth } from "../context/AuthContext"
+import { useEffect, useState } from "react"
 
 const PrivateRoute = () => {
-  const { session, loading } = UserAuth();
-  const location = useLocation();
-  const [redirectPath, setRedirectPath] = useState(null);
+  const { session, loading, refreshSession } = UserAuth()
+  const location = useLocation()
+  const [redirectPath, setRedirectPath] = useState(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [lastAttempt, setLastAttempt] = useState(0)
+  const [localLoading, setLocalLoading] = useState(true)
 
-  // Check access rights whenever location or session changes
+  // Attempt to refresh session if needed
   useEffect(() => {
-    if (!loading && session) {
-      const currentPath = location.pathname;
+    const attemptSessionRefresh = async () => {
+      // Prevent multiple refresh attempts in quick succession
+      const now = Date.now()
+      if (now - lastAttempt < 5000) return // Don't try more than once every 5 seconds
 
-      // Define route patterns with more comprehensive matching
-      const adminRoutes = [
-        "/admin-dashboard",
-        "/admin", // Explicitly include /admin
-        /^\/admin(\/.*)?$/, // Match /admin and any sub-routes
-      ];
+      setLastAttempt(now)
+
+      if (!session && !loading && !isRefreshing) {
+        console.log("No session, attempting to refresh...")
+        setIsRefreshing(true)
+
+        try {
+          const result = await refreshSession()
+          console.log("Session refresh result:", result.success)
+        } catch (err) {
+          console.error("Error refreshing session:", err)
+        } finally {
+          setIsRefreshing(false)
+          setLocalLoading(false)
+        }
+      } else if (!loading) {
+        // If not loading and we have a session or definitely don't have one
+        setLocalLoading(false)
+      }
+    }
+
+    attemptSessionRefresh()
+  }, [session, loading, refreshSession, isRefreshing, lastAttempt])
+
+  // Handle route access based on user role
+  useEffect(() => {
+    console.log("PrivateRoute - Loading:", loading, "Session:", !!session, "Path:", location.pathname)
+
+    if (!loading && !isRefreshing && session) {
+      const currentPath = location.pathname
+
+      const adminRoutes = ["/admin-dashboard", "/admin", /^\/admin(\/.*)?$/]
 
       const doctorRoutes = [
         "/dashboard",
@@ -31,65 +63,73 @@ const PrivateRoute = () => {
         "/reports",
         "/settings",
         "/help",
-        /^\/dashboard(\/.*)?$/, // Match /dashboard and sub-routes
-        /^\/patients(\/.*)?$/, // Match /patients and sub-routes
-      ];
+        /^\/dashboard(\/.*)?$/,
+        /^\/patients(\/.*)?$/,
+      ]
 
-      // Check if current path is an admin route
       const isAdminRoute = adminRoutes.some((route) =>
-        typeof route === "string"
-          ? currentPath === route
-          : route.test(currentPath)
-      );
+        typeof route === "string" ? currentPath === route : route.test(currentPath),
+      )
 
-      // Check if current path is a doctor route
       const isDoctorRoute = doctorRoutes.some((route) =>
-        typeof route === "string"
-          ? currentPath === route
-          : route.test(currentPath)
-      );
+        typeof route === "string" ? currentPath === route : route.test(currentPath),
+      )
 
-      // Validate session.role
-      const validRoles = ["admin", "doctor"];
+      const validRoles = ["admin", "doctor"]
       if (!validRoles.includes(session.role)) {
-        console.error("Invalid role:", session.role);
-        setRedirectPath("/signin"); // Redirect to sign-in for invalid roles
-        return;
+        console.error("Invalid role:", session.role)
+        setRedirectPath("/signin")
+        return
       }
 
-      // Handle role-based redirects
       if (session.role === "admin" && isDoctorRoute) {
-        setRedirectPath("/admin-dashboard");
+        console.log("Admin attempting doctor route, redirecting to /admin-dashboard")
+        setRedirectPath("/admin-dashboard")
       } else if (session.role === "doctor" && isAdminRoute) {
-        setRedirectPath("/dashboard");
+        console.log("Doctor attempting admin route, redirecting to /dashboard")
+        setRedirectPath("/dashboard")
       } else {
-        setRedirectPath(null);
+        setRedirectPath(null)
       }
     }
-  }, [location.pathname, session, loading]);
+  }, [location.pathname, session, loading, isRefreshing])
 
-  // Show loading spinner while checking authentication
-  if (loading) {
+  // Set a maximum timeout to prevent infinite loading
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (localLoading) {
+        console.log("Loading timeout reached, forcing state update")
+        setLocalLoading(false)
+      }
+    }, 5000) // 5 second maximum loading time
+
+    return () => clearTimeout(timeoutId)
+  }, [localLoading])
+
+  // Show loading state while checking session or refreshing
+  if (loading || isRefreshing || localLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
         <p className="ml-3 text-lg text-gray-700">Loading...</p>
       </div>
-    );
+    )
   }
 
-  // Redirect to sign-in if not authenticated
+  // If no session after refresh attempt, redirect to signin
   if (!session) {
-    return <Navigate to="/signin" replace />;
+    console.log("No session after refresh, redirecting to /signin")
+    // Save the current location to redirect back after login
+    return <Navigate to="/signin" replace state={{ from: location }} />
   }
 
-  // Perform role-based redirect if needed
   if (redirectPath) {
-    return <Navigate to={redirectPath} replace />;
+    console.log("Redirecting to:", redirectPath)
+    return <Navigate to={redirectPath} replace />
   }
 
-  // If all checks pass, render the protected route
-  return <Outlet />;
-};
+  console.log("Rendering protected route:", location.pathname)
+  return <Outlet />
+}
 
-export default PrivateRoute;
+export default PrivateRoute

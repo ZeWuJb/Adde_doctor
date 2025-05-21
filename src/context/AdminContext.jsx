@@ -1,3 +1,7 @@
+// Create a separate file for the context
+// src/context/AdminContextProvider.jsx
+"use client"
+
 import { createContext, useState, useEffect, useCallback } from "react"
 import PropTypes from "prop-types"
 import { supabase } from "../supabaseClient"
@@ -32,28 +36,24 @@ export const AdminContextProvider = ({ children }) => {
   })
 
   // Fetch admin profile data
-  const fetchAdminData = async () => {
+  const fetchAdminData = useCallback(async () => {
     if (!session || !session.user) return
 
     try {
-      const { data, error: adminError } = await supabase
-        .from("admins")
-        .select("*")
-        .eq("user_id", session.user.id)
-        .single()
+      const { data, error } = await supabase.from("admins").select("*").eq("user_id", session.user.id).single()
 
-      if (adminError) {
-        console.error("Error fetching admin data:", adminError.message)
+      if (error) {
+        console.error("Error fetching admin data:", error.message)
       } else {
         setAdminData(data)
       }
     } catch (err) {
       console.error("Error in fetchAdminData:", err.message)
     }
-  }
+  }, [session])
 
   // Fetch doctors data
-  const fetchDoctors = async () => {
+  const fetchDoctors = useCallback(async () => {
     try {
       // Fetch doctors from Supabase
       const { data: doctorsData, error: doctorsError } = await supabase
@@ -108,10 +108,10 @@ export const AdminContextProvider = ({ children }) => {
       console.error("Error fetching doctors:", err.message)
       setError("Failed to fetch doctors data. Please try again later.")
     }
-  }
+  }, [])
 
   // Fetch patients data
-  const fetchPatients = async () => {
+  const fetchPatients = useCallback(async () => {
     try {
       const { data, error } = await supabase.from("mothers").select("*").order("created_at", { ascending: false })
 
@@ -121,10 +121,10 @@ export const AdminContextProvider = ({ children }) => {
       console.error("Error fetching patients:", err.message)
       setError("Failed to fetch patients. Please try again later.")
     }
-  }
+  }, [])
 
   // Fetch appointments data
-  const fetchAppointments = async () => {
+  const fetchAppointments = useCallback(async () => {
     try {
       // Fetch appointments from Supabase
       const { data: appointmentsData, error: appointmentsError } = await supabase
@@ -168,10 +168,10 @@ export const AdminContextProvider = ({ children }) => {
       console.error("Error fetching appointments:", err.message)
       setError("Failed to fetch appointments data. Please try again later.")
     }
-  }
+  }, [])
 
   // Fetch articles data
-  const fetchArticles = async () => {
+  const fetchArticles = useCallback(async () => {
     try {
       // Fetch from Supabase
       const { data, error } = await supabase
@@ -185,77 +185,110 @@ export const AdminContextProvider = ({ children }) => {
       console.error("Error fetching articles:", err.message)
       setError("Failed to fetch articles. Please try again later.")
     }
-  }
+  }, [])
 
-  // Fetch roles data
-  const fetchRoles = async () => {
+  // Modify the fetchRoles function to handle the new policy structure
+  const fetchRoles = useCallback(async () => {
     try {
-      // Check if the roles table exists in Supabase
-      try {
-        // Try to fetch roles from Supabase
+      // Check if user is admin first
+      const { data: adminData } = await supabase
+        .from("admins")
+        .select("id")
+        .eq("user_id", session?.user?.id)
+        .maybeSingle()
+
+      const isAdmin = !!adminData
+
+      if (!isAdmin) {
+        console.log("User is not an admin, using limited role data")
+        // For non-admins, just fetch basic role info without user counts
         const { data: rolesData, error: rolesError } = await supabase
           .from("roles")
           .select("*")
           .order("name", { ascending: true })
 
-        if (rolesError) {
-          // If the table doesn't exist, use mock data
-          if (rolesError.message.includes("does not exist")) {
-            console.warn("Roles table does not exist in the database, using mock data")
-            setRoles([
-              {
-                id: 1,
-                name: "Admin",
-                description: "Full system access with all permissions",
-                userCount: 3,
-                permissions: [
-                  "manage_doctors",
-                  "manage_patients",
-                  "manage_content",
-                  "manage_roles",
-                  "system_monitoring",
-                ],
-              },
-              {
-                id: 2,
-                name: "Doctor",
-                description: "Access to patient data and appointments",
-                userCount: 42,
-                permissions: ["view_patients", "manage_appointments", "view_content"],
-              },
-              {
-                id: 3,
-                name: "Patient",
-                description: "Limited access to personal data and appointments",
-                userCount: 189,
-                permissions: ["view_profile", "book_appointments", "view_content"],
-              },
-              {
-                id: 4,
-                name: "Content Manager",
-                description: "Manages health information and educational content",
-                userCount: 5,
-                permissions: ["manage_content", "view_content"],
-              },
-            ])
-          } else {
-            throw rolesError
-          }
-        } else {
-          // If we successfully fetched roles, use them
-          setRoles(rolesData)
-        }
-      } catch (err) {
-        console.error("Error checking for roles table:", err.message)
+        if (rolesError) throw rolesError
+
+        // Set roles with empty permissions and user counts
+        const rolesWithLimitedDetails = rolesData.map((role) => ({
+          ...role,
+          permissions: [],
+          userCount: 0,
+        }))
+
+        setRoles(rolesWithLimitedDetails)
+        return
       }
+
+      // For admins, fetch complete role data
+      // Fetch roles from Supabase
+      const { data: rolesData, error: rolesError } = await supabase
+        .from("roles")
+        .select("*")
+        .order("name", { ascending: true })
+
+      if (rolesError) throw rolesError
+
+      // Fetch permissions
+      const { data: permData, error: permError } = await supabase.from("permissions").select("*")
+
+      if (permError) throw permError
+
+      // Fetch role_permissions
+      const { data: rpData, error: rpError } = await supabase.from("role_permissions").select("role_id, permission_id")
+
+      if (rpError) throw rpError
+
+      // Fetch user_roles to get user counts
+      const { data: urData, error: urError } = await supabase.from("user_roles").select("role_id")
+
+      if (urError) {
+        console.error("Error fetching user roles:", urError.message)
+        // Continue without user counts if there's an error
+        const rolesWithPermissions = rolesData.map((role) => {
+          const permIds = rpData.filter((rp) => rp.role_id === role.id).map((rp) => rp.permission_id)
+
+          const permissions = permData.filter((perm) => permIds.includes(perm.id)).map((perm) => perm.name)
+
+          return {
+            ...role,
+            permissions,
+            userCount: 0, // Default to 0 if we can't get counts
+          }
+        })
+
+        setRoles(rolesWithPermissions)
+        return
+      }
+
+      // Count users per role
+      const userCounts = urData.reduce((acc, ur) => {
+        acc[ur.role_id] = (acc[ur.role_id] || 0) + 1
+        return acc
+      }, {})
+
+      // Combine roles with permissions
+      const rolesWithDetails = rolesData.map((role) => {
+        const permIds = rpData.filter((rp) => rp.role_id === role.id).map((rp) => rp.permission_id)
+
+        const permissions = permData.filter((perm) => permIds.includes(perm.id)).map((perm) => perm.name)
+
+        return {
+          ...role,
+          permissions,
+          userCount: userCounts[role.id] || 0,
+        }
+      })
+
+      setRoles(rolesWithDetails)
     } catch (err) {
       console.error("Error fetching roles:", err.message)
       setError("Failed to fetch user roles. Please try again later.")
     }
-  }
+  }, [session])
 
   // Fetch system stats
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       // Get doctors count
       const { count: doctorsCount } = await supabase.from("doctors").select("*", { count: "exact", head: true })
@@ -282,10 +315,10 @@ export const AdminContextProvider = ({ children }) => {
     } catch (err) {
       console.error("Error fetching stats:", err.message)
     }
-  }
+  }, [])
 
   // Fetch system status
-  const fetchSystemStatus = async () => {
+  const fetchSystemStatus = useCallback(async () => {
     try {
       // Simulate database query to check connection
       const startTime = Date.now()
@@ -336,9 +369,9 @@ export const AdminContextProvider = ({ children }) => {
     } catch (err) {
       console.error("Error fetching system status:", err.message)
     }
-  }
+  }, [])
 
-  // Fetch all admin data - using useCallback to fix the exhaustive-deps warning
+  // Fetch all admin data - using useCallback with proper dependencies
   const fetchAllAdminData = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -360,9 +393,18 @@ export const AdminContextProvider = ({ children }) => {
     } finally {
       setLoading(false)
     }
-  }, []) // Empty dependency array since these functions don't depend on any props or state
+  }, [
+    fetchAdminData,
+    fetchDoctors,
+    fetchPatients,
+    fetchAppointments,
+    fetchArticles,
+    fetchRoles,
+    fetchStats,
+    fetchSystemStatus,
+  ])
 
-  // Set up real-time subscriptions - using useCallback to fix the exhaustive-deps warning
+  // Set up real-time subscriptions - using useCallback with proper dependencies
   const setupSubscriptions = useCallback(() => {
     // Doctors subscription
     const doctorsSubscription = supabase
@@ -407,7 +449,7 @@ export const AdminContextProvider = ({ children }) => {
       supabase.removeChannel(articlesSubscription)
       supabase.removeChannel(patientsSubscription)
     }
-  }, []) // Empty dependency array since these functions don't depend on any props or state
+  }, [fetchDoctors, fetchAppointments, fetchArticles, fetchPatients, fetchStats])
 
   // Initial data fetch when session changes
   useEffect(() => {
@@ -418,7 +460,7 @@ export const AdminContextProvider = ({ children }) => {
     } else {
       setLoading(false)
     }
-  }, [session, fetchAllAdminData, setupSubscriptions]) // Added missing dependencies
+  }, [session, fetchAllAdminData, setupSubscriptions])
 
   // Methods for updating data
   const addDoctor = async (doctorData) => {
