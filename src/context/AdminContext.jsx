@@ -397,7 +397,14 @@ export const AdminContextProvider = ({ children }) => {
         }
         const reader = new FileReader()
         const base64Promise = new Promise((resolve, reject) => {
-          reader.onload = () => resolve(reader.result)
+          reader.onload = () => {
+            // Remove data URL prefix (e.g., "data:image/png;base64,")
+            const base64String = reader.result.split(',')[1]
+            if (!base64String) {
+              reject(new Error("Failed to extract Base64 string"))
+            }
+            resolve(base64String)
+          }
           reader.onerror = () => reject(new Error("Failed to read image file"))
           reader.readAsDataURL(imageFile)
         })
@@ -424,7 +431,14 @@ export const AdminContextProvider = ({ children }) => {
         }
         const reader = new FileReader()
         const base64Promise = new Promise((resolve, reject) => {
-          reader.onload = () => resolve(reader.result)
+          reader.onload = () => {
+            // Remove data URL prefix (e.g., "data:image/png;base64,")
+            const base64String = reader.result.split(',')[1]
+            if (!base64String) {
+              reject(new Error("Failed to extract Base64 string"))
+            }
+            resolve(base64String)
+          }
           reader.onerror = () => reject(new Error("Failed to read image file"))
           reader.readAsDataURL(imageFile)
         })

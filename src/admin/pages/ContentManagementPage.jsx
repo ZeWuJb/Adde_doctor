@@ -42,6 +42,13 @@ const ContentManagementPage = () => {
   const [formError, setFormError] = useState(null)
   const location = useLocation()
 
+  // Helper function to format raw Base64 for img src
+  const getImageSrc = (base64) => {
+    if (!base64) return ""
+    // Assume JPEG for consistency; adjust if other formats are needed
+    return `data:image/jpeg;base64,${base64}`
+  }
+
   useEffect(() => {
     // Filter weekly_tips
     if (weeklyTips.length === 0) {
@@ -297,7 +304,7 @@ const ContentManagementPage = () => {
                             <p className="text-gray-600 mb-3">{article.description_am}</p>
                           )}
                           {article.image && (
-                            <img src={article.image} alt={article.title_en} className="mt-2 max-w-xs rounded-md" />
+                            <img src={getImageSrc(article.image)} alt={article.title_en} className="mt-2 max-w-xs rounded-md" />
                           )}
                         </div>
                         <div className="flex space-x-2">
@@ -360,7 +367,7 @@ const ContentManagementPage = () => {
                             <p className="text-gray-600 mb-3">{article.text_am}</p>
                           )}
                           {article.image && (
-                            <img src={article.image} alt={article.title_en} className="mt-2 max-w-xs rounded-md" />
+                            <img src={getImageSrc(article.image)} alt={article.title_en} className="mt-2 max-w-xs rounded-md" />
                           )}
                         </div>
                         <div className="flex space-x-2">
