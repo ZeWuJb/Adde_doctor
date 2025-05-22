@@ -1,5 +1,3 @@
-// Create a separate file for the context
-// src/context/AdminContextProvider.jsx
 "use client"
 
 import { createContext, useState, useEffect, useCallback } from "react"
@@ -7,20 +5,18 @@ import PropTypes from "prop-types"
 import { supabase } from "../supabaseClient"
 import { UserAuth } from "./AuthContext"
 
-// Create the context
 export const AdminContext = createContext()
 
 export const AdminContextProvider = ({ children }) => {
   const { session } = UserAuth()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-
-  // Admin data states
   const [adminData, setAdminData] = useState(null)
   const [doctors, setDoctors] = useState([])
   const [patients, setPatients] = useState([])
   const [appointments, setAppointments] = useState([])
-  const [articles, setArticles] = useState([])
+  const [weeklyTips, setWeeklyTips] = useState([])
+  const [infoArticles, setInfoArticles] = useState([])
   const [roles, setRoles] = useState([])
   const [stats, setStats] = useState({
     doctorsCount: 0,
@@ -35,59 +31,37 @@ export const AdminContextProvider = ({ children }) => {
     auth: { status: "healthy", activeUsers: 42, totalUsers: 189 },
   })
 
-  // Fetch admin profile data
   const fetchAdminData = useCallback(async () => {
     if (!session || !session.user) return
-
     try {
       const { data, error } = await supabase.from("admins").select("*").eq("user_id", session.user.id).single()
-
-      if (error) {
-        console.error("Error fetching admin data:", error.message)
-      } else {
-        setAdminData(data)
-      }
+      if (error) throw error
+      setAdminData(data)
     } catch (err) {
-      console.error("Error in fetchAdminData:", err.message)
+      console.error("Error fetching admin data:", err.message)
     }
   }, [session])
 
-  // Fetch doctors data
   const fetchDoctors = useCallback(async () => {
     try {
-      // Fetch doctors from Supabase
-      const { data: doctorsData, error: doctorsError } = await supabase
+      const { data: doctorsData, error } = await supabase
         .from("doctors")
         .select("*")
         .order("created_at", { ascending: false })
-
-      if (doctorsError) throw doctorsError
-
-      // Get appointment counts for each doctor
+      if (error) throw error
       const doctorsWithCounts = await Promise.all(
         doctorsData.map(async (doctor) => {
-          // Get appointment count
           const { count: appointmentsCount, error: appointmentsError } = await supabase
             .from("appointments")
             .select("*", { count: "exact", head: true })
             .eq("doctor_id", doctor.id)
-
-          if (appointmentsError) {
-            console.error("Error fetching appointment count:", appointmentsError.message)
-          }
-
-          // Get unique patient count
+          if (appointmentsError) console.error("Error fetching appointment count:", appointmentsError.message)
           const { data: uniquePatients, error: patientsError } = await supabase
             .from("appointments")
             .select("mother_id")
             .eq("doctor_id", doctor.id)
-
-          if (patientsError) {
-            console.error("Error fetching patient count:", patientsError.message)
-          }
-
+          if (patientsError) console.error("Error fetching patient count:", patientsError.message)
           const uniquePatientCount = uniquePatients ? new Set(uniquePatients.map((p) => p.mother_id)).size : 0
-
           return {
             id: doctor.id,
             name: doctor.full_name,
@@ -102,7 +76,6 @@ export const AdminContextProvider = ({ children }) => {
           }
         }),
       )
-
       setDoctors(doctorsWithCounts)
     } catch (err) {
       console.error("Error fetching doctors:", err.message)
@@ -110,11 +83,9 @@ export const AdminContextProvider = ({ children }) => {
     }
   }, [])
 
-  // Fetch patients data
   const fetchPatients = useCallback(async () => {
     try {
       const { data, error } = await supabase.from("mothers").select("*").order("created_at", { ascending: false })
-
       if (error) throw error
       setPatients(data)
     } catch (err) {
@@ -123,11 +94,9 @@ export const AdminContextProvider = ({ children }) => {
     }
   }, [])
 
-  // Fetch appointments data
   const fetchAppointments = useCallback(async () => {
     try {
-      // Fetch appointments from Supabase
-      const { data: appointmentsData, error: appointmentsError } = await supabase
+      const { data: appointmentsData, error } = await supabase
         .from("appointments")
         .select(`
           id, 
@@ -148,10 +117,7 @@ export const AdminContextProvider = ({ children }) => {
           )
         `)
         .order("requested_time", { ascending: false })
-
-      if (appointmentsError) throw appointmentsError
-
-      // Transform the data to match the expected format
+      if (error) throw error
       const formattedAppointments = appointmentsData.map((appointment) => ({
         id: appointment.id,
         patientName: appointment.mothers?.full_name || "Unknown Patient",
@@ -162,7 +128,6 @@ export const AdminContextProvider = ({ children }) => {
         patientAvatar: appointment.mothers?.profile_url || "https://randomuser.me/api/portraits/women/44.jpg",
         doctorAvatar: appointment.doctors?.profile_url || "https://randomuser.me/api/portraits/women/68.jpg",
       }))
-
       setAppointments(formattedAppointments)
     } catch (err) {
       console.error("Error fetching appointments:", err.message)
@@ -170,116 +135,84 @@ export const AdminContextProvider = ({ children }) => {
     }
   }, [])
 
-  // Fetch articles data
-  const fetchArticles = useCallback(async () => {
+  const fetchWeeklyTips = useCallback(async () => {
     try {
-      // Fetch from Supabase
       const { data, error } = await supabase
-        .from("education_articles")
+        .from("weekly_tips")
         .select("*")
-        .order("created_at", { ascending: false })
-
+        .order("week", { ascending: true })
       if (error) throw error
-      setArticles(data)
+      setWeeklyTips(data)
     } catch (err) {
-      console.error("Error fetching articles:", err.message)
-      setError("Failed to fetch articles. Please try again later.")
+      console.error("Error fetching weekly tips:", err.message)
+      setError("Failed to fetch weekly tips. Please try again later.")
     }
   }, [])
 
-  // Modify the fetchRoles function to handle the new policy structure
+  const fetchInfoArticles = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("info1")
+        .select("*")
+        .order("created_at", { ascending: false })
+      if (error) throw error
+      setInfoArticles(data)
+    } catch (err) {
+      console.error("Error fetching info articles:", err.message)
+      setError("Failed to fetch info articles. Please try again later.")
+    }
+  }, [])
+
   const fetchRoles = useCallback(async () => {
     try {
-      // Check if user is admin first
       const { data: adminData } = await supabase
         .from("admins")
         .select("id")
         .eq("user_id", session?.user?.id)
         .maybeSingle()
-
       const isAdmin = !!adminData
-
       if (!isAdmin) {
-        console.log("User is not an admin, using limited role data")
-        // For non-admins, just fetch basic role info without user counts
-        const { data: rolesData, error: rolesError } = await supabase
+        const { data: rolesData, error } = await supabase
           .from("roles")
           .select("*")
           .order("name", { ascending: true })
-
-        if (rolesError) throw rolesError
-
-        // Set roles with empty permissions and user counts
+        if (error) throw error
         const rolesWithLimitedDetails = rolesData.map((role) => ({
           ...role,
           permissions: [],
           userCount: 0,
         }))
-
         setRoles(rolesWithLimitedDetails)
         return
       }
-
-      // For admins, fetch complete role data
-      // Fetch roles from Supabase
       const { data: rolesData, error: rolesError } = await supabase
         .from("roles")
         .select("*")
         .order("name", { ascending: true })
-
       if (rolesError) throw rolesError
-
-      // Fetch permissions
       const { data: permData, error: permError } = await supabase.from("permissions").select("*")
-
       if (permError) throw permError
-
-      // Fetch role_permissions
       const { data: rpData, error: rpError } = await supabase.from("role_permissions").select("role_id, permission_id")
-
       if (rpError) throw rpError
-
-      // Fetch user_roles to get user counts
       const { data: urData, error: urError } = await supabase.from("user_roles").select("role_id")
-
       if (urError) {
-        console.error("Error fetching user roles:", urError.message)
-        // Continue without user counts if there's an error
         const rolesWithPermissions = rolesData.map((role) => {
           const permIds = rpData.filter((rp) => rp.role_id === role.id).map((rp) => rp.permission_id)
-
           const permissions = permData.filter((perm) => permIds.includes(perm.id)).map((perm) => perm.name)
-
-          return {
-            ...role,
-            permissions,
-            userCount: 0, // Default to 0 if we can't get counts
-          }
+          return { ...role, permissions, userCount: 0 }
         })
-
         setRoles(rolesWithPermissions)
         return
       }
-
-      // Count users per role
       const userCounts = urData.reduce((acc, ur) => {
         acc[ur.role_id] = (acc[ur.role_id] || 0) + 1
         return acc
       }, {})
-
-      // Combine roles with permissions
       const rolesWithDetails = rolesData.map((role) => {
         const permIds = rpData.filter((rp) => rp.role_id === role.id).map((rp) => rp.permission_id)
-
         const permissions = permData.filter((perm) => permIds.includes(perm.id)).map((perm) => perm.name)
-
-        return {
-          ...role,
-          permissions,
-          userCount: userCounts[role.id] || 0,
-        }
+        return { ...role, permissions, userCount: userCounts[role.id] || 0 }
       })
-
       setRoles(rolesWithDetails)
     } catch (err) {
       console.error("Error fetching roles:", err.message)
@@ -287,102 +220,64 @@ export const AdminContextProvider = ({ children }) => {
     }
   }, [session])
 
-  // Fetch system stats
   const fetchStats = useCallback(async () => {
     try {
-      // Get doctors count
       const { count: doctorsCount } = await supabase.from("doctors").select("*", { count: "exact", head: true })
-
-      // Get patients (mothers) count
       const { count: patientsCount } = await supabase.from("mothers").select("*", { count: "exact", head: true })
-
-      // Get appointments count
       const { count: appointmentsCount } = await supabase
         .from("appointments")
         .select("*", { count: "exact", head: true })
-
-      // Get articles count
-      const { count: articlesCount } = await supabase
-        .from("education_articles")
+      const { count: weeklyTipsCount } = await supabase
+        .from("weekly_tips")
         .select("*", { count: "exact", head: true })
-
+      const { count: infoArticlesCount } = await supabase
+        .from("info1")
+        .select("*", { count: "exact", head: true })
       setStats({
         doctorsCount: doctorsCount || 0,
         patientsCount: patientsCount || 0,
         appointmentsCount: appointmentsCount || 0,
-        articlesCount: articlesCount || 0,
+        articlesCount: (weeklyTipsCount || 0) + (infoArticlesCount || 0),
       })
     } catch (err) {
       console.error("Error fetching stats:", err.message)
     }
   }, [])
 
-  // Fetch system status
   const fetchSystemStatus = useCallback(async () => {
     try {
-      // Simulate database query to check connection
       const startTime = Date.now()
       await supabase.from("admins").select("*", { count: "exact", head: true })
-
-      const endTime = Date.now()
-      const dbLatency = endTime - startTime
-
-      // Get storage usage (this is a mock since Supabase doesn't expose this directly)
-      const storageUsage = Math.floor(Math.random() * 20) + 60 // Mock value between 60-80GB
-
-      // Get user counts
+      const dbLatency = Date.now() - startTime
+      const storageUsage = Math.floor(Math.random() * 20) + 60
       const { count: totalUsers, error: usersError } = await supabase
         .from("mothers")
         .select("*", { count: "exact", head: true })
-
       if (usersError) throw usersError
-
-      // Get active users (users who have logged in within the last 24 hours - mock data)
-      const activeUsers = Math.floor(totalUsers * 0.3) // Assume 30% of users are active
-
-      // Get API latency (mock data)
-      const apiLatency = Math.floor(Math.random() * 100) + 80 // 80-180ms
-
-      // Update system status with real database latency and user counts
+      const activeUsers = Math.floor(totalUsers * 0.3)
+      const apiLatency = Math.floor(Math.random() * 100) + 80
       setSystemStatus({
-        database: {
-          status: dbLatency > 500 ? "warning" : "healthy",
-          latency: dbLatency,
-          uptime: 99.98,
-        },
-        api: {
-          status: apiLatency > 150 ? "warning" : "healthy",
-          latency: apiLatency,
-          uptime: 99.95,
-        },
-        storage: {
-          status: storageUsage > 400 ? "warning" : "healthy",
-          usage: storageUsage,
-          total: 500,
-        },
-        auth: {
-          status: "healthy",
-          activeUsers: activeUsers,
-          totalUsers: totalUsers || 0,
-        },
+        database: { status: dbLatency > 500 ? "warning" : "healthy", latency: dbLatency, uptime: 99.98 },
+        api: { status: apiLatency > 150 ? "warning" : "healthy", latency: apiLatency, uptime: 99.95 },
+        storage: { status: storageUsage > 400 ? "warning" : "healthy", usage: storageUsage, total: 500 },
+        auth: { status: "healthy", activeUsers: activeUsers, totalUsers: totalUsers || 0 },
       })
     } catch (err) {
       console.error("Error fetching system status:", err.message)
     }
   }, [])
 
-  // Fetch all admin data - using useCallback with proper dependencies
   const fetchAllAdminData = useCallback(async () => {
     setLoading(true)
     setError(null)
-
     try {
       await Promise.all([
         fetchAdminData(),
         fetchDoctors(),
         fetchPatients(),
         fetchAppointments(),
-        fetchArticles(),
+        fetchWeeklyTips(),
+        fetchInfoArticles(),
         fetchRoles(),
         fetchStats(),
         fetchSystemStatus(),
@@ -398,15 +293,14 @@ export const AdminContextProvider = ({ children }) => {
     fetchDoctors,
     fetchPatients,
     fetchAppointments,
-    fetchArticles,
+    fetchWeeklyTips,
+    fetchInfoArticles,
     fetchRoles,
     fetchStats,
     fetchSystemStatus,
   ])
 
-  // Set up real-time subscriptions - using useCallback with proper dependencies
   const setupSubscriptions = useCallback(() => {
-    // Doctors subscription
     const doctorsSubscription = supabase
       .channel("doctors-changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "doctors" }, () => {
@@ -414,8 +308,6 @@ export const AdminContextProvider = ({ children }) => {
         fetchStats()
       })
       .subscribe()
-
-    // Appointments subscription
     const appointmentsSubscription = supabase
       .channel("appointments-changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, () => {
@@ -423,17 +315,20 @@ export const AdminContextProvider = ({ children }) => {
         fetchStats()
       })
       .subscribe()
-
-    // Articles subscription
-    const articlesSubscription = supabase
-      .channel("articles-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "education_articles" }, () => {
-        fetchArticles()
+    const weeklyTipsSubscription = supabase
+      .channel("weekly-tips-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "weekly_tips" }, () => {
+        fetchWeeklyTips()
         fetchStats()
       })
       .subscribe()
-
-    // Patients subscription
+    const infoArticlesSubscription = supabase
+      .channel("info-articles-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "info1" }, () => {
+        fetchInfoArticles()
+        fetchStats()
+      })
+      .subscribe()
     const patientsSubscription = supabase
       .channel("patients-changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "mothers" }, () => {
@@ -441,17 +336,15 @@ export const AdminContextProvider = ({ children }) => {
         fetchStats()
       })
       .subscribe()
-
-    // Return cleanup function
     return () => {
       supabase.removeChannel(doctorsSubscription)
       supabase.removeChannel(appointmentsSubscription)
-      supabase.removeChannel(articlesSubscription)
+      supabase.removeChannel(weeklyTipsSubscription)
+      supabase.removeChannel(infoArticlesSubscription)
       supabase.removeChannel(patientsSubscription)
     }
-  }, [fetchDoctors, fetchAppointments, fetchArticles, fetchPatients, fetchStats])
+  }, [fetchDoctors, fetchAppointments, fetchWeeklyTips, fetchInfoArticles, fetchPatients, fetchStats])
 
-  // Initial data fetch when session changes
   useEffect(() => {
     if (session && session.user) {
       fetchAllAdminData()
@@ -462,14 +355,10 @@ export const AdminContextProvider = ({ children }) => {
     }
   }, [session, fetchAllAdminData, setupSubscriptions])
 
-  // Methods for updating data
   const addDoctor = async (doctorData) => {
     try {
       const { data, error } = await supabase.from("doctors").insert(doctorData).select()
-
       if (error) throw error
-
-      // No need to manually update state as the subscription will trigger a refresh
       return { success: true, data }
     } catch (err) {
       console.error("Error adding doctor:", err.message)
@@ -480,10 +369,7 @@ export const AdminContextProvider = ({ children }) => {
   const updateDoctor = async (id, doctorData) => {
     try {
       const { data, error } = await supabase.from("doctors").update(doctorData).eq("id", id).select()
-
       if (error) throw error
-
-      // No need to manually update state as the subscription will trigger a refresh
       return { success: true, data }
     } catch (err) {
       console.error("Error updating doctor:", err.message)
@@ -494,10 +380,7 @@ export const AdminContextProvider = ({ children }) => {
   const deleteDoctor = async (id) => {
     try {
       const { error } = await supabase.from("doctors").delete().eq("id", id)
-
       if (error) throw error
-
-      // No need to manually update state as the subscription will trigger a refresh
       return { success: true }
     } catch (err) {
       console.error("Error deleting doctor:", err.message)
@@ -505,62 +388,87 @@ export const AdminContextProvider = ({ children }) => {
     }
   }
 
-  const addArticle = async (articleData) => {
+  const addArticle = async (table, articleData, imageFile) => {
     try {
-      const { data, error } = await supabase.from("education_articles").insert(articleData).select()
-
+      let imageBase64 = null
+      if (imageFile) {
+        if (imageFile.size > 2 * 1024 * 1024) {
+          throw new Error("Image size exceeds 2MB limit")
+        }
+        const reader = new FileReader()
+        const base64Promise = new Promise((resolve, reject) => {
+          reader.onload = () => resolve(reader.result)
+          reader.onerror = () => reject(new Error("Failed to read image file"))
+          reader.readAsDataURL(imageFile)
+        })
+        imageBase64 = await base64Promise
+      }
+      const payload = { ...articleData, image: imageBase64 }
+      const { data, error } = await supabase.from(table).insert([payload]).select()
       if (error) throw error
-
-      // No need to manually update state as the subscription will trigger a refresh
+      if (table === "weekly_tips") await fetchWeeklyTips()
+      else if (table === "info1") await fetchInfoArticles()
       return { success: true, data }
     } catch (err) {
-      console.error("Error adding article:", err.message)
+      console.error(`Error adding article to ${table}:`, err.message, err)
       return { success: false, error: err.message }
     }
   }
 
-  const updateArticle = async (id, articleData) => {
+  const updateArticle = async (table, id, articleData, imageFile) => {
     try {
-      const { data, error } = await supabase.from("education_articles").update(articleData).eq("id", id).select()
-
+      let imageBase64 = articleData.image
+      if (imageFile) {
+        if (imageFile.size > 2 * 1024 * 1024) {
+          throw new Error("Image size exceeds 2MB limit")
+        }
+        const reader = new FileReader()
+        const base64Promise = new Promise((resolve, reject) => {
+          reader.onload = () => resolve(reader.result)
+          reader.onerror = () => reject(new Error("Failed to read image file"))
+          reader.readAsDataURL(imageFile)
+        })
+        imageBase64 = await base64Promise
+      }
+      const payload = { ...articleData, image: imageBase64 }
+      const { data, error } = await supabase.from(table).update(payload).eq("id", id).select()
       if (error) throw error
-
-      // No need to manually update state as the subscription will trigger a refresh
+      if (table === "weekly_tips") await fetchWeeklyTips()
+      else if (table === "info1") await fetchInfoArticles()
       return { success: true, data }
     } catch (err) {
-      console.error("Error updating article:", err.message)
+      console.error(`Error updating article in ${table}:`, err.message, err)
       return { success: false, error: err.message }
     }
   }
 
-  const deleteArticle = async (id) => {
+  const deleteArticle = async (table, id) => {
     try {
-      const { error } = await supabase.from("education_articles").delete().eq("id", id)
-
+      const { error } = await supabase.from(table).delete().eq("id", id)
       if (error) throw error
-
-      // No need to manually update state as the subscription will trigger a refresh
+      if (table === "weekly_tips") await fetchWeeklyTips()
+      else if (table === "info1") await fetchInfoArticles()
       return { success: true }
     } catch (err) {
-      console.error("Error deleting article:", err.message)
+      console.error(`Error deleting article from ${table}:`, err.message)
       return { success: false, error: err.message }
     }
   }
 
-  // Refresh all data manually if needed
   const refreshData = () => {
     fetchAllAdminData()
   }
 
-  // Context value
   const value = {
     loading,
     error,
+    setError,
     adminData,
     doctors,
     patients,
     appointments,
-    articles,
+    weeklyTips,
+    infoArticles,
     roles,
     stats,
     systemStatus,
@@ -576,7 +484,6 @@ export const AdminContextProvider = ({ children }) => {
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>
 }
 
-// Add prop types validation to fix the ESLint warning
 AdminContextProvider.propTypes = {
   children: PropTypes.node.isRequired,
 }
