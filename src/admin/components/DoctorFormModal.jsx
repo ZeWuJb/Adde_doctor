@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import PropTypes from "prop-types"
 import { X, Camera, AlertCircle, Check } from "lucide-react"
 import { supabase } from "../../supabaseClient"
+import { uploadImage } from "../../services/imageService"
 
 const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
   const [formData, setFormData] = useState({
@@ -11,7 +12,7 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
     email: "",
     speciality: "",
     description: "",
-    payment_required_amount: 0.00,
+    payment_required_amount: 0.0,
     type: "doctor",
     profile_url: "",
   })
@@ -27,7 +28,7 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
         email: doctor.email || "",
         speciality: doctor.speciality || "",
         description: doctor.description || "",
-        payment_required_amount: doctor.payment_required_amount || 0.00,
+        payment_required_amount: doctor.payment_required_amount || 0.0,
         type: doctor.type || "doctor",
         profile_url: doctor.profile_url || "",
       })
@@ -38,7 +39,7 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
         email: "",
         speciality: "",
         description: "",
-        payment_required_amount: 0.00,
+        payment_required_amount: 0.0,
         type: "doctor",
         profile_url: "",
       })
@@ -49,7 +50,7 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
     const { name, value } = e.target
     setFormData((prev) => ({
       ...prev,
-      [name]: name === "payment_required_amount" ? parseFloat(value) || 0.00 : value,
+      [name]: name === "payment_required_amount" ? Number.parseFloat(value) || 0.0 : value,
     }))
   }
 
@@ -59,24 +60,20 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
 
     setUploadingImage(true)
     try {
-      // Upload image to Supabase Storage
-      const fileExt = file.name.split(".").pop()
-      const fileName = `doctor-${Math.random().toString(36).substring(2)}.${fileExt}`
-      const filePath = `doctor-profiles/${fileName}`
+      // Use the new image service
+      const { success, url, error } = await uploadImage(
+        file,
+        "profiles",
+        "doctor-profiles",
+        `doctor-${Math.random().toString(36).substring(2)}`,
+      )
 
-      const { error: uploadError } = await supabase.storage.from("profiles").upload(filePath, file)
-
-      if (uploadError) throw uploadError
-
-      // Get public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("profiles").getPublicUrl(filePath)
+      if (!success) throw error
 
       // Update form with new image URL
       setFormData((prev) => ({
         ...prev,
-        profile_url: publicUrl,
+        profile_url: url,
       }))
     } catch (err) {
       console.error("Error uploading image:", err.message)
@@ -103,7 +100,7 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
         email: formData.email,
         speciality: formData.speciality,
         description: formData.description,
-        payment_required_amount: parseFloat(formData.payment_required_amount) || 0.00,
+        payment_required_amount: Number.parseFloat(formData.payment_required_amount) || 0.0,
         type: formData.type,
         profile_url: formData.profile_url,
       }
@@ -111,12 +108,7 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
       let result
       if (doctor) {
         // Update existing doctor
-        const { data, error } = await supabase
-          .from("doctors")
-          .update(doctorData)
-          .eq("id", doctor.id)
-          .select()
-          .single()
+        const { data, error } = await supabase.from("doctors").update(doctorData).eq("id", doctor.id).select().single()
 
         if (error) {
           if (error.code === "23505") {
@@ -129,11 +121,7 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
         // Create new doctor
         doctorData.created_at = new Date().toISOString()
 
-        const { data, error } = await supabase
-          .from("doctors")
-          .insert(doctorData)
-          .select()
-          .single()
+        const { data, error } = await supabase.from("doctors").insert(doctorData).select().single()
 
         if (error) {
           if (error.code === "23505") {
@@ -170,9 +158,7 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
           <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
         </div>
 
-        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">
-          
-        </span>
+        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true"></span>
 
         <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
           <div className="absolute top-0 right-0 pt-4 pr-4">

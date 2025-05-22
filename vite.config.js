@@ -1,5 +1,5 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite"
+import react from "@vitejs/plugin-react"
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -34,7 +34,11 @@ export default defineConfig({
     hmr: {
       protocol: "ws",
       host: "localhost",
-      port: 24678, // Match the port in the error message
+      port: 24678,
+      // Add this to increase the header size limit
+      clientPort: 24678,
+      // Increase timeout for WebSocket connections
+      timeout: 120000,
     },
   },
-});
+})

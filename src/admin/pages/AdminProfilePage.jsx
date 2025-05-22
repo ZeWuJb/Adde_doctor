@@ -21,6 +21,7 @@ import AdminSidebar from "../components/AdminSidebar"
 import AdminHeader from "../components/AdminHeader"
 import { useLocation } from "react-router-dom"
 import { supabase } from "../../supabaseClient"
+import { uploadImage } from "../../services/imageService"
 
 const AdminProfilePage = () => {
   const { session, userData, signOut } = UserAuth()
@@ -138,24 +139,15 @@ const AdminProfilePage = () => {
 
     setUploadingImage(true)
     try {
-      // Upload image to Supabase Storage
-      const fileExt = file.name.split(".").pop()
-      const fileName = `${session.user.id}-${Math.random().toString(36).substring(2)}.${fileExt}`
-      const filePath = `admin-profiles/${fileName}`
+      // Use the new image service
+      const { success, url, error } = await uploadImage(file, "profiles", "admin-profiles", session.user.id)
 
-      const { error: uploadError } = await supabase.storage.from("profiles").upload(filePath, file)
-
-      if (uploadError) throw uploadError
-
-      // Get public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("profiles").getPublicUrl(filePath)
+      if (!success) throw error
 
       // Update profile with new image URL
       setProfile((prev) => ({
         ...prev,
-        profileImage: publicUrl,
+        profileImage: url,
       }))
     } catch (err) {
       console.error("Error uploading image:", err.message)
