@@ -1,48 +1,106 @@
-import { supabase } from "../supabaseClient"
+/**
+ * Comprehensive image handling service for the application
+ * Handles image uploads, validation, and conversion for all user types
+ */
 
 /**
- * Uploads an image to Supabase storage and returns the public URL
- * @param {File} file - The image file to upload
- * @param {string} bucket - The storage bucket name
- * @param {string} folder - The folder path within the bucket
- * @param {string} id - The unique identifier for the file (user ID, doctor ID, etc.)
- * @returns {Promise<{success: boolean, url?: string, error?: any}>}
+ * Checks if a string is a valid base64 image
+ * @param {string} str - The string to check
+ * @returns {boolean} - Whether the string is a valid base64 image
  */
-export const uploadImage = async (file, bucket, folder, id) => {
+export const isBase64Image = (str) => {
+  if (!str) return false
+
   try {
-    if (!file) {
-      throw new Error("No file provided")
+    // If it's already a data URL, return true
+    if (str.startsWith("data:image")) {
+      return true
     }
 
-    // Validate file type
-    const fileExt = file.name.split(".").pop().toLowerCase()
-    const allowedTypes = ["jpg", "jpeg", "png", "gif", "webp"]
+    // Check if it's a valid base64 string (without data:image prefix)
+    // This is a simple check - in production you might want more validation
+    const base64Regex = /^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)?$/
+    return base64Regex.test(str)
+  } catch (e) {
+    // If there's any error, it's not a valid base64 string
+    console.error("Error checking base64 image:", e)
+    return false
+  }
+}
 
-    if (!allowedTypes.includes(fileExt)) {
-      throw new Error("Invalid file type. Only images are allowed.")
+/**
+ * Gets a proper image source URL from various formats
+ * @param {string} profileUrl - The profile URL or base64 data
+ * @param {string} placeholder - The placeholder image URL
+ * @returns {string} - The proper image source URL
+ */
+export const getImageSrc = (profileUrl, placeholder = "/placeholder.svg?height=40&width=40") => {
+  if (!profileUrl) return placeholder
+
+  try {
+    // If it's already a data URL (starts with data:image), return it directly
+    if (profileUrl.startsWith("data:image")) {
+      return profileUrl
     }
 
-    // Create a unique file name
-    const fileName = `${id}-${Math.random().toString(36).substring(2)}.${fileExt}`
-    const filePath = `${folder}/${fileName}`
+    // If it's a URL (starts with http or https), return it directly
+    if (profileUrl.startsWith("http")) {
+      return profileUrl
+    }
 
-    // Upload the file
-    const { error: uploadError } = await supabase.storage.from(bucket).upload(filePath, file, {
-      cacheControl: "3600",
-      upsert: false,
+    // If it's a base64 string without the data URL prefix, add it
+    if (isBase64Image(profileUrl)) {
+      return `data:image/jpeg;base64,${profileUrl}`
+    }
+
+    // If none of the above, return the placeholder
+    return placeholder
+  } catch (error) {
+    console.error("Error processing image source:", error)
+    return placeholder
+  }
+}
+
+/**
+ * Uploads an image file and returns it as a base64 string
+ * @param {File} file - The file to upload
+ * @param {number} maxSizeKB - Maximum file size in KB
+ * @returns {Promise<{success: boolean, base64?: string, error?: Error}>} - Result object
+ */
+export const uploadImageAsBase64 = async (file, maxSizeKB = 500) => {
+  try {
+    // Validate file
+    if (!file || !file.type.startsWith("image/")) {
+      return {
+        success: false,
+        error: new Error("Invalid file type. Please upload an image."),
+      }
+    }
+
+    // Check file size
+    if (file.size > maxSizeKB * 1024) {
+      return {
+        success: false,
+        error: new Error(`Image size exceeds ${maxSizeKB}KB limit`),
+      }
+    }
+
+    // Convert to base64
+    const reader = new FileReader()
+    const base64Promise = new Promise((resolve, reject) => {
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = () => reject(new Error("Failed to read image file"))
+      reader.readAsDataURL(file)
     })
 
-    if (uploadError) throw uploadError
-
-    // Get the public URL
-    const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(filePath)
+    const base64Image = await base64Promise
 
     return {
       success: true,
-      url: urlData.publicUrl,
+      base64: base64Image,
     }
   } catch (error) {
-    console.error("Error uploading image:", error.message)
+    console.error("Error uploading image:", error)
     return {
       success: false,
       error,
@@ -51,71 +109,85 @@ export const uploadImage = async (file, bucket, folder, id) => {
 }
 
 /**
- * Converts an image file to base64 string
- * @param {File} file - The image file to convert
- * @returns {Promise<string>} - Base64 encoded string
+ * Validates an image file
+ * @param {File} file - The file to validate
+ * @param {number} maxSizeKB - Maximum file size in KB
+ * @returns {{valid: boolean, error?: string}} - Validation result
  */
-export const fileToBase64 = (file) => {
+export const validateImage = (file, maxSizeKB = 500) => {
+  // Check if file exists
+  if (!file) {
+    return {
+      valid: false,
+      error: "No file selected",
+    }
+  }
+
+  // Check if file is an image
+  if (!file.type.startsWith("image/")) {
+    return {
+      valid: false,
+      error: "Please select an image file (JPEG, PNG, etc.)",
+    }
+  }
+
+  // Check file size
+  if (file.size > maxSizeKB * 1024) {
+    return {
+      valid: false,
+      error: `Image size exceeds ${maxSizeKB}KB limit`,
+    }
+  }
+
+  return { valid: true }
+}
+
+/**
+ * Resizes an image file to specified dimensions
+ * @param {File} file - The image file to resize
+ * @param {number} maxWidth - Maximum width
+ * @param {number} maxHeight - Maximum height
+ * @returns {Promise<File>} - The resized image file
+ */
+export const resizeImage = async (file, maxWidth = 300, maxHeight = 300) => {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.readAsDataURL(file)
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = (error) => reject(error)
+    try {
+      const img = new Image()
+      img.src = URL.createObjectURL(file)
+
+      img.onload = () => {
+        const canvas = document.createElement("canvas")
+        let width = img.width
+        let height = img.height
+
+        // Calculate new dimensions
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width)
+            width = maxWidth
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height)
+            height = maxHeight
+          }
+        }
+
+        canvas.width = width
+        canvas.height = height
+
+        const ctx = canvas.getContext("2d")
+        ctx.drawImage(img, 0, 0, width, height)
+
+        // Convert to blob
+        canvas.toBlob((blob) => {
+          resolve(new File([blob], file.name, { type: file.type }))
+        }, file.type)
+      }
+
+      img.onerror = () => reject(new Error("Failed to load image"))
+    } catch (error) {
+      reject(error)
+    }
   })
-}
-
-/**
- * Uploads an image as base64 string to the database
- * @param {File} file - The image file to upload
- * @returns {Promise<{success: boolean, base64?: string, error?: any}>}
- */
-export const imageToBase64 = async (file) => {
-  try {
-    if (!file) {
-      throw new Error("No file provided")
-    }
-
-    // Convert file to base64
-    const base64String = await fileToBase64(file)
-
-    return {
-      success: true,
-      base64: base64String,
-    }
-  } catch (error) {
-    console.error("Error converting image to base64:", error.message)
-    return {
-      success: false,
-      error,
-    }
-  }
-}
-
-/**
- * Deletes an image from Supabase storage
- * @param {string} url - The public URL of the image to delete
- * @param {string} bucket - The storage bucket name
- * @returns {Promise<{success: boolean, error?: any}>}
- */
-export const deleteImage = async (url, bucket) => {
-  try {
-    if (!url) return { success: true }
-
-    // Extract the file path from the URL
-    const urlObj = new URL(url)
-    const pathParts = urlObj.pathname.split("/")
-    const filePath = pathParts.slice(pathParts.indexOf(bucket) + 1).join("/")
-
-    const { error } = await supabase.storage.from(bucket).remove([filePath])
-
-    if (error) throw error
-
-    return { success: true }
-  } catch (error) {
-    console.error("Error deleting image:", error.message)
-    return {
-      success: false,
-      error,
-    }
-  }
 }

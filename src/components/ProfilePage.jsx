@@ -1,126 +1,131 @@
-"use client"
-
-import { useState, useEffect } from "react"
-import { UserAuth } from "../context/AuthContext"
-import { fetchDoctorProfile, updateDoctorProfile, uploadProfileImage } from "../services/profileService.js"
-import { User, Mail, Briefcase, DollarSign, Users, Calendar, Edit2, Save, X, Upload } from "lucide-react"
+import { useState, useEffect } from "react";
+import { UserAuth } from "../context/AuthContext";
+import { fetchDoctorProfile, updateDoctorProfile, uploadDoctorImage, formatDate } from "../services/profileService";
+import { User, Mail, Briefcase, DollarSign, Users, Calendar, Edit2, Save, X, Upload } from "lucide-react";
+import { validateImage, getImageSrc } from "../services/imageService";
 
 const ProfilePage = () => {
-  const { session } = UserAuth()
-  const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [isEditing, setIsEditing] = useState(false)
-  const [editedProfile, setEditedProfile] = useState(null)
-  const [imageFile, setImageFile] = useState(null)
-  const [imagePreview, setImagePreview] = useState(null)
-  const [uploadingImage, setUploadingImage] = useState(false)
+  const { session } = UserAuth();
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedProfile, setEditedProfile] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     const loadDoctorProfile = async () => {
-      if (!session?.user?.id) return
+      if (!session?.user?.id) return;
 
       try {
-        setLoading(true)
-        const result = await fetchDoctorProfile(session.user.id)
+        setLoading(true);
+        const result = await fetchDoctorProfile(session.user.id);
 
         if (result.success) {
-          setProfile(result.data)
-          setEditedProfile(result.data)
+          setProfile(result.data);
+          setEditedProfile(result.data);
         } else {
-          setError("Failed to load profile information")
+          setError("Failed to load profile information");
         }
       } catch (err) {
-        console.error("Error loading profile:", err)
-        setError("An unexpected error occurred while loading your profile")
+        console.error("Error loading profile:", err);
+        setError("An unexpected error occurred while loading your profile");
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    loadDoctorProfile()
-  }, [session])
+    loadDoctorProfile();
+  }, [session]);
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target
+    const { name, value } = e.target;
     setEditedProfile((prev) => ({
       ...prev,
       [name]: value,
-    }))
-  }
+    }));
+  };
 
   const handleImageChange = (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      setImageFile(file)
-      setImagePreview(URL.createObjectURL(file))
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const validation = validateImage(file);
+    if (!validation.valid) {
+      setError(validation.error);
+      return;
     }
-  }
+
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
 
   const handleUploadImage = async () => {
-    if (!imageFile || !session?.user?.id) return
+    if (!imageFile || !profile?.id) return;
 
     try {
-      setUploadingImage(true)
-      const result = await uploadProfileImage(session.user.id, imageFile)
+      setUploadingImage(true);
+      const result = await uploadDoctorImage(profile.id, imageFile);
 
       if (result.success) {
-        // Update profile with new image URL
         setEditedProfile((prev) => ({
           ...prev,
           profile_url: result.url,
-        }))
+        }));
         setProfile((prev) => ({
           ...prev,
           profile_url: result.url,
-        }))
-        setImageFile(null)
+        }));
+        setImageFile(null);
+        setImagePreview(null);
       } else {
-        setError("Failed to upload image")
+        setError("Failed to upload image");
       }
     } catch (err) {
-      console.error("Error uploading image:", err)
-      setError("An unexpected error occurred during image upload")
+      console.error("Error uploading image:", err);
+      setError("An unexpected error occurred during image upload");
     } finally {
-      setUploadingImage(false)
+      setUploadingImage(false);
     }
-  }
+  };
 
   const handleSaveProfile = async () => {
-    if (!profile?.id) return
+    if (!profile?.id) return;
 
     try {
-      setLoading(true)
-      const result = await updateDoctorProfile(profile.id, editedProfile)
+      setLoading(true);
+      const result = await updateDoctorProfile(profile.id, editedProfile);
 
       if (result.success) {
-        setProfile(result.data)
-        setIsEditing(false)
-        setError(null)
+        setProfile(result.data);
+        setIsEditing(false);
+        setError(null);
       } else {
-        setError("Failed to update profile")
+        setError("Failed to update profile");
       }
     } catch (err) {
-      console.error("Error updating profile:", err)
-      setError("An unexpected error occurred while saving your profile")
+      console.error("Error updating profile:", err);
+      setError("An unexpected error occurred while saving your profile");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleCancelEdit = () => {
-    setEditedProfile(profile)
-    setIsEditing(false)
-    setImageFile(null)
-    setImagePreview(null)
-  }
+    setEditedProfile(profile);
+    setIsEditing(false);
+    setImageFile(null);
+    setImagePreview(null);
+  };
 
   if (loading && !profile) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-teal-500"></div>
       </div>
-    )
+    );
   }
 
   if (error && !profile) {
@@ -129,7 +134,7 @@ const ProfilePage = () => {
         <h3 className="text-lg font-medium">Error Loading Profile</h3>
         <p>{error}</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -148,16 +153,26 @@ const ProfilePage = () => {
               <div className="h-32 w-32 rounded-full border-4 border-white bg-white overflow-hidden shadow-lg">
                 {!isEditing ? (
                   <img
-                    src={profile?.profile_url || "/placeholder.svg?height=128&width=128"}
+                    src={getImageSrc(profile?.profile_url, "/placeholder.svg?height=128&width=128")}
                     alt="Profile"
                     className="h-full w-full object-cover"
+                    onError={(e) => {
+                      if (e.target.src !== "/placeholder.svg?height=128&width=128") {
+                        e.target.src = "/placeholder.svg?height=128&width=128";
+                      }
+                    }}
                   />
                 ) : (
                   <>
                     <img
-                      src={imagePreview || profile?.profile_url || "/placeholder.svg?height=128&width=128"}
+                      src={imagePreview || getImageSrc(editedProfile?.profile_url, "/placeholder.svg?height=128&width=128")}
                       alt="Profile"
                       className="h-full w-full object-cover"
+                      onError={(e) => {
+                        if (e.target.src !== "/placeholder.svg?height=128&width=128") {
+                          e.target.src = "/placeholder.svg?height=128&width=128";
+                        }
+                      }}
                     />
                     <label className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 cursor-pointer">
                       <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
@@ -322,15 +337,7 @@ const ProfilePage = () => {
                     <h3 className="text-sm font-medium text-gray-500">Member Since</h3>
                     <div className="flex items-center mt-1">
                       <Calendar className="h-5 w-5 text-orange-500 mr-1" />
-                      <span className="text-lg font-medium text-gray-800">
-                        {profile?.created_at
-                          ? new Date(profile.created_at).toLocaleDateString("en-US", {
-                              month: "long",
-                              day: "numeric",
-                              year: "numeric",
-                            })
-                          : "N/A"}
-                      </span>
+                      <span className="text-lg font-medium text-gray-800">{formatDate(profile?.created_at)}</span>
                     </div>
                   </div>
                 </div>
@@ -340,8 +347,7 @@ const ProfilePage = () => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default ProfilePage
-
+export default ProfilePage;

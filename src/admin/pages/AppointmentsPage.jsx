@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { UserAuth } from "../../context/AuthContext"
-import { Search, Filter, Calendar, AlertCircle, ChevronDown } from "lucide-react"
+import { Search, Filter, Calendar, AlertCircle, ChevronDown, User } from "lucide-react"
 import AdminSidebar from "../components/AdminSidebar"
 import AdminHeader from "../components/AdminHeader"
 import { useLocation } from "react-router-dom"
@@ -92,6 +92,39 @@ const AppointmentsPage = () => {
       hour: "2-digit",
       minute: "2-digit",
     })
+  }
+
+  // Handle image error by replacing with User icon
+  const handleImageError = (e) => {
+    // Replace the image with a div containing the User icon
+    const parent = e.target.parentNode
+    const iconDiv = document.createElement("div")
+    iconDiv.className = e.target.className + " flex items-center justify-center bg-gray-200"
+
+    // Create an SVG element for the User icon
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
+    svg.setAttribute("width", "60%")
+    svg.setAttribute("height", "60%")
+    svg.setAttribute("viewBox", "0 0 24 24")
+    svg.setAttribute("fill", "none")
+    svg.setAttribute("stroke", "currentColor")
+    svg.setAttribute("stroke-width", "2")
+    svg.setAttribute("stroke-linecap", "round")
+    svg.setAttribute("stroke-linejoin", "round")
+
+    // User icon path
+    const path1 = document.createElementNS("http://www.w3.org/2000/svg", "path")
+    path1.setAttribute("d", "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2")
+    svg.appendChild(path1)
+
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle")
+    circle.setAttribute("cx", "12")
+    circle.setAttribute("cy", "7")
+    circle.setAttribute("r", "4")
+    svg.appendChild(circle)
+
+    iconDiv.appendChild(svg)
+    parent.replaceChild(iconDiv, e.target)
   }
 
   if (loading) {
@@ -199,12 +232,19 @@ const AppointmentsPage = () => {
                     <div className="px-4 py-4 sm:px-6">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10">
-                            <img
-                              className="h-10 w-10 rounded-full"
-                              src={appointment.patientAvatar || "/placeholder.svg?height=40&width=40"}
-                              alt={appointment.patientName}
-                            />
+                          <div className="flex-shrink-0 h-10 w-10 relative rounded-full overflow-hidden">
+                            {appointment.patientAvatar ? (
+                              <img
+                                className="h-10 w-10 rounded-full object-cover"
+                                src={appointment.patientAvatar || "/placeholder.svg"}
+                                alt={appointment.patientName}
+                                onError={handleImageError}
+                              />
+                            ) : (
+                              <div className="h-10 w-10 rounded-full flex items-center justify-center bg-gray-200">
+                                <User className="h-6 w-6 text-gray-500" />
+                              </div>
+                            )}
                           </div>
                           <div className="ml-4">
                             <div className="text-sm font-medium text-gray-900">{appointment.patientName}</div>
@@ -232,12 +272,19 @@ const AppointmentsPage = () => {
                       <div className="mt-2 sm:flex sm:justify-between">
                         <div className="sm:flex">
                           <div className="flex items-center text-sm text-gray-500">
-                            <div className="flex-shrink-0 h-8 w-8 mr-2">
-                              <img
-                                className="h-8 w-8 rounded-full"
-                                src={appointment.doctorAvatar || "/placeholder.svg?height=32&width=32"}
-                                alt={appointment.doctorName}
-                              />
+                            <div className="flex-shrink-0 h-8 w-8 relative rounded-full overflow-hidden mr-2">
+                              {appointment.doctorAvatar ? (
+                                <img
+                                  className="h-8 w-8 rounded-full object-cover"
+                                  src={appointment.doctorAvatar || "/placeholder.svg"}
+                                  alt={appointment.doctorName}
+                                  onError={handleImageError}
+                                />
+                              ) : (
+                                <div className="h-8 w-8 rounded-full flex items-center justify-center bg-gray-200">
+                                  <User className="h-5 w-5 text-gray-500" />
+                                </div>
+                              )}
                             </div>
                             <div>
                               <p>{appointment.doctorName}</p>

@@ -1,110 +1,104 @@
-"use client"
-
-import { useState, useEffect } from "react"
-import { UserAuth } from "../../context/AuthContext"
-import { useLocation } from "react-router-dom"
-import AdminSidebar from "../components/AdminSidebar"
-import AdminHeader from "../components/AdminHeader"
-import { Search, Filter, ChevronDown, User, AlertCircle } from "lucide-react"
-import { useAdmin } from "../../hooks/useAdmin"
+import { useState, useEffect } from "react";
+import { UserAuth } from "../../context/AuthContext";
+import { useLocation } from "react-router-dom";
+import AdminSidebar from "../components/AdminSidebar";
+import AdminHeader from "../components/AdminHeader";
+import { Search, Filter, ChevronDown, User, AlertCircle } from "lucide-react";
+import { useAdmin } from "../../hooks/useAdmin";
+import { getImageSrc } from "../../services/imageService";
 
 const PatientsPage = () => {
-  const { session, userData, signOut } = UserAuth()
-  const { loading, error, patients } = useAdmin()
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [filteredPatients, setFilteredPatients] = useState([])
-  const [searchTerm, setSearchTerm] = useState("")
-  const [showFilters, setShowFilters] = useState(false)
-  const [ageFilter, setAgeFilter] = useState("all")
-  const [pregnancyWeekFilter, setPregnancyWeekFilter] = useState("all")
-  const [selectedPatient, setSelectedPatient] = useState(null)
-  const [showPatientDetails, setShowPatientDetails] = useState(false)
-  const location = useLocation()
+  const { session, userData, signOut } = UserAuth();
+  const { loading, error, patients } = useAdmin();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [filteredPatients, setFilteredPatients] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [ageFilter, setAgeFilter] = useState("all");
+  const [pregnancyWeekFilter, setPregnancyWeekFilter] = useState("all");
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [showPatientDetails, setShowPatientDetails] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     if (patients.length === 0) {
-      setFilteredPatients([])
-      return
+      setFilteredPatients([]);
+      return;
     }
 
-    let filtered = [...patients]
+    let filtered = [...patients];
 
-    // Apply search filter
     if (searchTerm) {
       filtered = filtered.filter(
         (patient) =>
           patient.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          patient.email.toLowerCase().includes(searchTerm.toLowerCase()),
-      )
+          patient.email.toLowerCase().includes(searchTerm.toLowerCase())
+      );
     }
 
-    // Apply age filter
     if (ageFilter !== "all") {
       if (ageFilter === "under25") {
-        filtered = filtered.filter((patient) => patient.age < 25)
+        filtered = filtered.filter((patient) => patient.age < 25);
       } else if (ageFilter === "25to35") {
-        filtered = filtered.filter((patient) => patient.age >= 25 && patient.age <= 35)
+        filtered = filtered.filter((patient) => patient.age >= 25 && patient.age <= 35);
       } else if (ageFilter === "over35") {
-        filtered = filtered.filter((patient) => patient.age > 35)
+        filtered = filtered.filter((patient) => patient.age > 35);
       }
     }
 
-    // Apply pregnancy week filter
     if (pregnancyWeekFilter !== "all") {
       if (pregnancyWeekFilter === "first") {
-        filtered = filtered.filter((patient) => patient.pregnancy_weeks <= 12)
+        filtered = filtered.filter((patient) => patient.pregnancy_weeks <= 12);
       } else if (pregnancyWeekFilter === "second") {
-        filtered = filtered.filter((patient) => patient.pregnancy_weeks > 12 && patient.pregnancy_weeks <= 27)
+        filtered = filtered.filter((patient) => patient.pregnancy_weeks > 12 && patient.pregnancy_weeks <= 27);
       } else if (pregnancyWeekFilter === "third") {
-        filtered = filtered.filter((patient) => patient.pregnancy_weeks > 27)
+        filtered = filtered.filter((patient) => patient.pregnancy_weeks > 27);
       }
     }
 
-    setFilteredPatients(filtered)
-  }, [searchTerm, ageFilter, pregnancyWeekFilter, patients])
+    setFilteredPatients(filtered);
+  }, [searchTerm, ageFilter, pregnancyWeekFilter, patients]);
 
   const handleSearchChange = (e) => {
-    setSearchTerm(e.target.value)
-  }
+    setSearchTerm(e.target.value);
+  };
 
   const handleSignOut = async () => {
-    await signOut()
-  }
+    await signOut();
+  };
 
   const handleViewPatient = (patient) => {
-    setSelectedPatient(patient)
-    setShowPatientDetails(true)
-  }
+    setSelectedPatient(patient);
+    setShowPatientDetails(true);
+  };
 
   const formatDate = (dateString) => {
-    if (!dateString) return "N/A"
+    if (!dateString) return "N/A";
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
       day: "numeric",
-    })
-  }
+    });
+  };
 
   const calculateDueDate = (startDate, weeks, days) => {
-    if (!startDate) return "N/A"
+    if (!startDate) return "N/A";
 
-    const pregnancyStart = new Date(startDate)
-    const dueDate = new Date(pregnancyStart)
+    const pregnancyStart = new Date(startDate);
+    const dueDate = new Date(pregnancyStart);
 
-    // Add 40 weeks to the start date
-    dueDate.setDate(dueDate.getDate() + 280)
+    dueDate.setDate(dueDate.getDate() + 280);
 
-    // Subtract current progress
     if (weeks) {
-      dueDate.setDate(dueDate.getDate() - weeks * 7)
+      dueDate.setDate(dueDate.getDate() - weeks * 7);
     }
 
     if (days) {
-      dueDate.setDate(dueDate.getDate() - days)
+      dueDate.setDate(dueDate.getDate() - days);
     }
 
-    return formatDate(dueDate)
-  }
+    return formatDate(dueDate);
+  };
 
   if (loading) {
     return (
@@ -112,12 +106,11 @@ const PatientsPage = () => {
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500"></div>
         <p className="ml-3 text-lg text-gray-700">Loading patients...</p>
       </div>
-    )
+    );
   }
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
       <AdminSidebar
         sidebarOpen={sidebarOpen}
         session={session}
@@ -126,12 +119,9 @@ const PatientsPage = () => {
         currentPath={location.pathname}
       />
 
-      {/* Main Content */}
       <div className="flex-1 md:ml-64">
-        {/* Top Navigation */}
         <AdminHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} session={session} />
 
-        {/* Patients Content */}
         <main className="p-6">
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-800">Patients Management</h1>
@@ -238,8 +228,13 @@ const PatientsPage = () => {
                               {patient.profile_url ? (
                                 <img
                                   className="h-10 w-10 rounded-full"
-                                  src={patient.profile_url || "/placeholder.svg"}
+                                  src={getImageSrc(patient.profile_url, "/placeholder.svg?height=40&width=40")}
                                   alt={patient.full_name}
+                                  onError={(e) => {
+                                    if (e.target.src !== "/placeholder.svg?height=40&width=40") {
+                                      e.target.src = "/placeholder.svg?height=40&width=40";
+                                    }
+                                  }}
                                 />
                               ) : (
                                 <div className="h-10 w-10 rounded-full bg-pink-100 flex items-center justify-center">
@@ -262,7 +257,7 @@ const PatientsPage = () => {
                           {calculateDueDate(
                             patient.pregnancy_start_date,
                             patient.pregnancy_weeks,
-                            patient.pregnancy_days,
+                            patient.pregnancy_days
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -295,9 +290,9 @@ const PatientsPage = () => {
                 {(searchTerm || ageFilter !== "all" || pregnancyWeekFilter !== "all") && (
                   <button
                     onClick={() => {
-                      setSearchTerm("")
-                      setAgeFilter("all")
-                      setPregnancyWeekFilter("all")
+                      setSearchTerm("");
+                      setAgeFilter("all");
+                      setPregnancyWeekFilter("all");
                     }}
                     className="mt-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
                   >
@@ -310,7 +305,6 @@ const PatientsPage = () => {
         </main>
       </div>
 
-      {/* Patient Details Modal */}
       {showPatientDetails && selectedPatient && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -330,8 +324,13 @@ const PatientsPage = () => {
                     {selectedPatient.profile_url ? (
                       <img
                         className="h-20 w-20 rounded-full"
-                        src={selectedPatient.profile_url || "/placeholder.svg"}
+                        src={getImageSrc(selectedPatient.profile_url, "/placeholder.svg?height=80&width=80")}
                         alt={selectedPatient.full_name}
+                        onError={(e) => {
+                          if (e.target.src !== "/placeholder.svg?height=80&width=80") {
+                            e.target.src = "/placeholder.svg?height=80&width=80";
+                          }
+                        }}
                       />
                     ) : (
                       <div className="h-20 w-20 rounded-full bg-pink-100 flex items-center justify-center">
@@ -399,7 +398,7 @@ const PatientsPage = () => {
                             {calculateDueDate(
                               selectedPatient.pregnancy_start_date,
                               selectedPatient.pregnancy_weeks,
-                              selectedPatient.pregnancy_days,
+                              selectedPatient.pregnancy_days
                             )}
                           </p>
                         </div>
@@ -409,10 +408,10 @@ const PatientsPage = () => {
                             {!selectedPatient.pregnancy_weeks
                               ? "N/A"
                               : selectedPatient.pregnancy_weeks <= 12
-                                ? "First"
-                                : selectedPatient.pregnancy_weeks <= 27
-                                  ? "Second"
-                                  : "Third"}
+                              ? "First"
+                              : selectedPatient.pregnancy_weeks <= 27
+                              ? "Second"
+                              : "Third"}
                           </p>
                         </div>
                       </div>
@@ -478,7 +477,7 @@ const PatientsPage = () => {
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default PatientsPage
+export default PatientsPage;

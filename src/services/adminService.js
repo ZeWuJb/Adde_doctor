@@ -64,19 +64,9 @@ export const AdminContextProvider = ({ children }) => {
           const uniquePatientCount = uniquePatients ? new Set(uniquePatients.map((p) => p.mother_id)).size : 0
           return {
             id: doctor.id,
-            full_name: doctor.full_name,
-            email: doctor.email,
-            profile_url: doctor.profile_url,
-            speciality: doctor.speciality || "General",
-            created_at: doctor.created_at,
-            type: doctor.type || "doctor",
-            description: doctor.description || "",
-            payment_required_amount: doctor.payment_required_amount || 0,
-            consultations_given: doctor.consultations_given || 0,
-            user_id: doctor.user_id,
-            // Additional fields for compatibility with existing code
             name: doctor.full_name,
             specialty: doctor.speciality || "General",
+            email: doctor.email,
             phone: doctor.phone_number || "N/A",
             patients: uniquePatientCount,
             appointments: appointmentsCount || 0,
@@ -498,3 +488,9 @@ export const AdminContextProvider = ({ children }) => {
 AdminContextProvider.propTypes = {
   children: PropTypes.node.isRequired,
 }
+
+import { AdminProvider } from "../hooks/useAdmin"
+
+export { AdminProvider, useAdmin } from "../hooks/useAdmin"
+
+export default AdminProvider

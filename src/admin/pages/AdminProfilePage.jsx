@@ -2,132 +2,58 @@
 
 import { useState, useEffect } from "react"
 import { UserAuth } from "../../context/AuthContext"
-import {
-  User,
-  Mail,
-  Phone,
-  Calendar,
-  MapPin,
-  Building,
-  Edit,
-  Camera,
-  Save,
-  X,
-  AlertCircle,
-  Check,
-  Shield,
-} from "lucide-react"
+import { Camera, Check, AlertCircle, Save} from "lucide-react"
 import AdminSidebar from "../components/AdminSidebar"
 import AdminHeader from "../components/AdminHeader"
-import { useLocation } from "react-router-dom"
 import { supabase } from "../../supabaseClient"
-import { uploadImage } from "../../services/imageService"
+import { useLocation} from "react-router-dom"
 
 const AdminProfilePage = () => {
   const { session, userData, signOut } = UserAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [success, setSuccess] = useState(null)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(null)
+  const [adminData, setAdminData] = useState(null)
+  const [formData, setFormData] = useState({
+    full_name: "",
+    email: "",
+    profile_url: "",
+  })
   const [uploadingImage, setUploadingImage] = useState(false)
-  const [activityLog, setActivityLog] = useState([])
   const location = useLocation()
 
-  // Admin profile state
-  const [profile, setProfile] = useState({
-    id: "",
-    fullName: "",
-    email: "",
-    phone: "",
-    role: "System Administrator",
-    department: "",
-    joinDate: "",
-    location: "",
-    bio: "",
-    profileImage: "",
-  })
-
   useEffect(() => {
-    if (session && session.user) {
-      fetchAdminProfile()
-      fetchActivityLog()
+    const fetchAdminProfile = async () => {
+      if (!session || !session.user) return
+
+      setLoading(true)
+      try {
+        const { data, error } = await supabase.from("admins").select("*").eq("user_id", session.user.id).single()
+
+        if (error) throw error
+
+        setAdminData(data)
+        setFormData({
+          full_name: data.full_name || "",
+          email: data.email || "",
+          profile_url: data.profile_url || "",
+        })
+      } catch (err) {
+        console.error("Error fetching admin profile:", err.message)
+        setError("Failed to load admin profile. Please try again later.")
+      } finally {
+        setLoading(false)
+      }
     }
+
+    fetchAdminProfile()
   }, [session])
-
-  const fetchAdminProfile = async () => {
-    setLoading(true)
-    try {
-      const { data, error } = await supabase.from("admins").select("*").eq("user_id", session.user.id).single()
-
-      if (error) throw error
-
-      setProfile({
-        id: data.id,
-        fullName: data.full_name || "",
-        email: data.email || session.user.email,
-        phone: data.phone_number || "",
-        role: data.role || "System Administrator",
-        department: data.department || "",
-        joinDate: data.created_at || new Date().toISOString(),
-        location: data.location || "",
-        bio: data.bio || "",
-        profileImage: data.profile_url || "",
-      })
-    } catch (err) {
-      console.error("Error fetching admin profile:", err.message)
-      setError("Failed to load profile data. Please try again.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchActivityLog = async () => {
-    try {
-      // In a real app, you would fetch from an activity_logs table
-      // For now, we'll use mock data
-      const mockActivityLog = [
-        {
-          id: 1,
-          action: "Updated system settings",
-          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-          details: "Changed notification settings",
-        },
-        {
-          id: 2,
-          action: "Added new doctor",
-          timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-          details: "Added Dr. Sarah Johnson to the system",
-        },
-        {
-          id: 3,
-          action: "Approved content article",
-          timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-          details: "Approved 'Prenatal Care Tips' article",
-        },
-        {
-          id: 4,
-          action: "System login",
-          timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-          details: "Logged in from 192.168.1.1",
-        },
-        {
-          id: 5,
-          action: "Updated role permissions",
-          timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-          details: "Modified Doctor role permissions",
-        },
-      ]
-
-      setActivityLog(mockActivityLog)
-    } catch (err) {
-      console.error("Error fetching activity log:", err.message)
-    }
-  }
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
-    setProfile((prev) => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value,
     }))
@@ -137,75 +63,80 @@ const AdminProfilePage = () => {
     const file = e.target.files[0]
     if (!file) return
 
+    // Validate image
+    if (!file.type.startsWith("image/")) {
+      setError("Please upload an image file")
+      return
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Image size should be less than 2MB")
+      return
+    }
+
     setUploadingImage(true)
     try {
-      // Use the new image service
-      const { success, url, error } = await uploadImage(file, "profiles", "admin-profiles", session.user.id)
-
-      if (!success) throw error
-
-      // Update profile with new image URL
-      setProfile((prev) => ({
-        ...prev,
-        profileImage: url,
-      }))
+      const reader = new FileReader()
+      reader.onload = () => {
+        setFormData((prev) => ({
+          ...prev,
+          profile_url: reader.result,
+        }))
+        setUploadingImage(false)
+      }
+      reader.onerror = () => {
+        setError("Failed to read image file")
+        setUploadingImage(false)
+      }
+      reader.readAsDataURL(file)
     } catch (err) {
       console.error("Error uploading image:", err.message)
-      setError("Failed to upload profile image. Please try again.")
-    } finally {
+      setError(err.message)
       setUploadingImage(false)
     }
   }
 
-  const saveProfile = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    setError(null)
+    setSuccess(null)
+
     try {
+      if (!formData.full_name || !formData.email) {
+        throw new Error("Please fill in all required fields")
+      }
+
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(formData.email)) {
+        throw new Error("Please enter a valid email address")
+      }
+
       const { error } = await supabase
         .from("admins")
         .update({
-          full_name: profile.fullName,
-          phone_number: profile.phone,
-          department: profile.department,
-          location: profile.location,
-          bio: profile.bio,
-          profile_url: profile.profileImage,
-          updated_at: new Date().toISOString(),
+          full_name: formData.full_name,
+          email: formData.email,
+          profile_url: formData.profile_url,
         })
-        .eq("user_id", session.user.id)
+        .eq("id", adminData.id)
 
-      if (error) throw error
+      if (error) {
+        if (error.code === "23505") {
+          throw new Error("This email is already in use by another admin.")
+        }
+        throw error
+      }
 
       setSuccess("Profile updated successfully")
-      setIsEditing(false)
       setTimeout(() => setSuccess(null), 3000)
     } catch (err) {
-      console.error("Error updating profile:", err.message)
-      setError("Failed to update profile. Please try again.")
-      setTimeout(() => setError(null), 3000)
+      console.error("Error updating admin profile:", err.message)
+      setError(err.message)
+    } finally {
+      setSaving(false)
     }
-  }
-
-  const cancelEditing = () => {
-    fetchAdminProfile() // Reset to original data
-    setIsEditing(false)
-  }
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
-  }
-
-  const formatTime = (dateString) => {
-    return new Date(dateString).toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-  }
-
-  const handleSignOut = async () => {
-    await signOut()
   }
 
   if (loading) {
@@ -219,247 +150,123 @@ const AdminProfilePage = () => {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
       <AdminSidebar
         sidebarOpen={sidebarOpen}
         session={session}
         userData={userData}
-        handleSignOut={handleSignOut}
-        currentPath={location.pathname}
+        handleSignOut={signOut}
+        currentPath={location?.pathname || "/admin/profile"}
       />
-
-      {/* Main Content */}
       <div className="flex-1 md:ml-64">
-        {/* Top Navigation */}
         <AdminHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} session={session} />
-
-        {/* Profile Content */}
         <main className="p-6">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-800">Admin Profile</h1>
-            <p className="text-gray-600">View and manage your profile information</p>
-          </div>
 
-          {success && (
-            <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg">
-              <div className="flex items-center">
-                <Check className="h-5 w-5 mr-2" />
-                <span>{success}</span>
-              </div>
-            </div>
-          )}
 
           {error && (
             <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
               <div className="flex items-center">
-                <AlertCircle className="h-5 w-5 mr-2" />
+                <AlertCircle className="h-5 w-5 mr-2" aria-hidden="true" />
                 <span>{error}</span>
               </div>
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Profile Card */}
-            <div className="lg:col-span-2">
-              <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-6">
-                    <h2 className="text-xl font-semibold text-gray-800">Profile Information</h2>
-                    {!isEditing ? (
-                      <button
-                        onClick={() => setIsEditing(true)}
-                        className="flex items-center text-sm text-pink-600 hover:text-pink-700"
-                      >
-                        <Edit className="h-4 w-4 mr-1" />
-                        Edit Profile
-                      </button>
-                    ) : (
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={saveProfile}
-                          className="flex items-center text-sm text-green-600 hover:text-green-700"
-                        >
-                          <Save className="h-4 w-4 mr-1" />
-                          Save
-                        </button>
-                        <button
-                          onClick={cancelEditing}
-                          className="flex items-center text-sm text-gray-600 hover:text-gray-700"
-                        >
-                          <X className="h-4 w-4 mr-1" />
-                          Cancel
-                        </button>
+          {success && (
+            <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg">
+              <div className="flex items-center">
+                <Check className="h-5 w-5 mr-2" aria-hidden="true" />
+                <span>{success}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="p-6">
+              <form onSubmit={handleSubmit}>
+                <div className="mb-6 flex justify-center">
+                  <div className="relative">
+                    <img
+                      src={formData.profile_url || "/placeholder.svg?height=100&width=100"}
+                      alt="Admin profile picture"
+                      className="h-24 w-24 rounded-full object-cover border-2 border-gray-200"
+                    />
+                    <label
+                      htmlFor="admin-profile-image"
+                      className="absolute bottom-0 right-0 bg-pink-600 text-white p-1.5 rounded-full cursor-pointer shadow-md hover:bg-pink-700"
+                      aria-label="Upload profile image"
+                    >
+                      <Camera className="h-4 w-4" aria-hidden="true" />
+                      <input
+                        type="file"
+                        id="admin-profile-image"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleProfileImageChange}
+                        disabled={uploadingImage}
+                      />
+                    </label>
+                    {uploadingImage && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 rounded-full">
+                        <div className="w-5 h-5 border-2 border-pink-600 border-t-transparent rounded-full animate-spin"></div>
                       </div>
                     )}
                   </div>
+                </div>
 
-                  <div className="flex flex-col md:flex-row">
-                    {/* Profile Image */}
-                    <div className="flex flex-col items-center mb-6 md:mb-0 md:mr-8">
-                      <div className="relative">
-                        <img
-                          src={profile.profileImage || "/placeholder.svg?height=128&width=128"}
-                          alt={profile.fullName}
-                          className="h-32 w-32 rounded-full object-cover border-4 border-white shadow-md"
-                        />
-                        {isEditing && (
-                          <label
-                            htmlFor="profile-image"
-                            className="absolute bottom-0 right-0 bg-pink-600 text-white p-2 rounded-full cursor-pointer shadow-md hover:bg-pink-700"
-                          >
-                            <Camera className="h-4 w-4" />
-                            <input
-                              type="file"
-                              id="profile-image"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={handleProfileImageChange}
-                              disabled={uploadingImage}
-                            />
-                          </label>
-                        )}
-                      </div>
-                      <div className="mt-4 flex items-center">
-                        <Shield className="h-4 w-4 text-pink-600 mr-1" />
-                        <span className="text-sm font-medium text-gray-700">{profile.role}</span>
-                      </div>
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-1">
+                      Full Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      id="full_name"
+                      name="full_name"
+                      value={formData.full_name}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
+                      required
+                      aria-required="true"
+                    />
+                  </div>
 
-                    {/* Profile Details */}
-                    <div className="flex-1">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              name="fullName"
-                              value={profile.fullName}
-                              onChange={handleInputChange}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
-                            />
-                          ) : (
-                            <div className="flex items-center">
-                              <User className="h-4 w-4 text-gray-400 mr-2" />
-                              <span>{profile.fullName}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                          <div className="flex items-center">
-                            <Mail className="h-4 w-4 text-gray-400 mr-2" />
-                            <span>{profile.email}</span>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              name="phone"
-                              value={profile.phone}
-                              onChange={handleInputChange}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
-                            />
-                          ) : (
-                            <div className="flex items-center">
-                              <Phone className="h-4 w-4 text-gray-400 mr-2" />
-                              <span>{profile.phone || "Not provided"}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Join Date</label>
-                          <div className="flex items-center">
-                            <Calendar className="h-4 w-4 text-gray-400 mr-2" />
-                            <span>{formatDate(profile.joinDate)}</span>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              name="department"
-                              value={profile.department}
-                              onChange={handleInputChange}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
-                            />
-                          ) : (
-                            <div className="flex items-center">
-                              <Building className="h-4 w-4 text-gray-400 mr-2" />
-                              <span>{profile.department || "Not specified"}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              name="location"
-                              value={profile.location}
-                              onChange={handleInputChange}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
-                            />
-                          ) : (
-                            <div className="flex items-center">
-                              <MapPin className="h-4 w-4 text-gray-400 mr-2" />
-                              <span>{profile.location || "Not specified"}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="mt-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Bio</label>
-                        {isEditing ? (
-                          <textarea
-                            name="bio"
-                            value={profile.bio}
-                            onChange={handleInputChange}
-                            rows={3}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
-                          />
-                        ) : (
-                          <p className="text-gray-600">{profile.bio || "No bio information provided."}</p>
-                        )}
-                      </div>
-                    </div>
+                  <div className="col-span-2">
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                      Email <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
+                      required
+                      aria-required="true"
+                    />
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Activity Log */}
-            <div>
-              <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-                <div className="p-6">
-                  <h2 className="text-xl font-semibold text-gray-800 mb-4">Recent Activity</h2>
-                  <div className="space-y-4">
-                    {activityLog.map((activity) => (
-                      <div key={activity.id} className="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h3 className="text-sm font-medium text-gray-800">{activity.action}</h3>
-                            <p className="text-xs text-gray-500 mt-1">{activity.details}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs font-medium text-gray-600">{formatDate(activity.timestamp)}</p>
-                            <p className="text-xs text-gray-500">{formatTime(activity.timestamp)}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                <div className="mt-6 flex justify-end">
+                  <button
+                    type="submit"
+                    className="flex items-center px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 disabled:opacity-50"
+                    disabled={saving || uploadingImage}
+                  >
+                    {saving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" aria-hidden="true" />
+                        Save Changes
+                      </>
+                    )}
+                  </button>
                 </div>
-              </div>
+              </form>
             </div>
           </div>
         </main>

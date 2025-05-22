@@ -7,7 +7,7 @@ import {
   rejectTemporaryAppointment,
   getDoctorIdFromUserId,
 } from "../services/appointmentService"
-import { Calendar, Search, Filter, ChevronDown, Video, Check, X, AlertCircle } from "lucide-react"
+import { Calendar, Search, Filter, ChevronDown, Video, Check, X, AlertCircle, User } from "lucide-react"
 import { useSocketNotifications } from "../hooks/useSocketNotifications"
 
 const AppointmentsPage = () => {
@@ -211,6 +211,39 @@ const AppointmentsPage = () => {
     return new Date(dateString) > new Date()
   }
 
+  // Handle image error by replacing with User icon
+  const handleImageError = (e) => {
+    // Replace the image with a div containing the User icon
+    const parent = e.target.parentNode
+    const iconDiv = document.createElement("div")
+    iconDiv.className = e.target.className + " flex items-center justify-center bg-gray-200"
+
+    // Create an SVG element for the User icon
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
+    svg.setAttribute("width", "60%")
+    svg.setAttribute("height", "60%")
+    svg.setAttribute("viewBox", "0 0 24 24")
+    svg.setAttribute("fill", "none")
+    svg.setAttribute("stroke", "currentColor")
+    svg.setAttribute("stroke-width", "2")
+    svg.setAttribute("stroke-linecap", "round")
+    svg.setAttribute("stroke-linejoin", "round")
+
+    // User icon path
+    const path1 = document.createElementNS("http://www.w3.org/2000/svg", "path")
+    path1.setAttribute("d", "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2")
+    svg.appendChild(path1)
+
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle")
+    circle.setAttribute("cx", "12")
+    circle.setAttribute("cy", "7")
+    circle.setAttribute("r", "4")
+    svg.appendChild(circle)
+
+    iconDiv.appendChild(svg)
+    parent.replaceChild(iconDiv, e.target)
+  }
+
   return (
     <div className="container mx-auto py-6 px-4">
       <h1 className="text-2xl font-bold mb-4">Appointments</h1>
@@ -287,12 +320,19 @@ const AppointmentsPage = () => {
                 <div className="px-4 py-4 sm:px-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10">
-                        <img
-                          className="h-10 w-10 rounded-full"
-                          src={appointment.mothers?.profile_url || "/placeholder.svg?height=40&width=40"}
-                          alt={appointment.mothers?.full_name}
-                        />
+                      <div className="flex-shrink-0 h-10 w-10 relative rounded-full overflow-hidden">
+                        {appointment.mothers?.profile_url ? (
+                          <img
+                            className="h-10 w-10 rounded-full object-cover"
+                            src={appointment.mothers?.profile_url || "/placeholder.svg"}
+                            alt={appointment.mothers?.full_name || "Patient"}
+                            onError={handleImageError}
+                          />
+                        ) : (
+                          <div className="h-10 w-10 rounded-full flex items-center justify-center bg-gray-200">
+                            <User className="h-6 w-6 text-gray-500" />
+                          </div>
+                        )}
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">

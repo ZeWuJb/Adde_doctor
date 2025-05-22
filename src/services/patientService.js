@@ -1,5 +1,4 @@
 import { supabase } from "../supabaseClient"
-import { uploadImage } from "./imageService"
 
 // Fetch all patients for a doctor
 export const fetchDoctorPatients = async (doctorId) => {
@@ -112,21 +111,42 @@ export const updatePatient = async (patientId, patientData) => {
   }
 }
 
-// Upload patient profile image
+// Upload patient profile image as base64
 export const uploadPatientImage = async (patientId, file) => {
   try {
-    const { success, url, error } = await uploadImage(file, "patient-profiles", "patient-profiles", patientId)
+    // Check file size (500KB limit like in Flutter app)
+    if (file.size > 500 * 1024) {
+      return {
+        success: false,
+        error: new Error("Image size exceeds 500KB limit"),
+      }
+    }
 
-    if (!success) throw error
+    // Convert to base64
+    const reader = new FileReader()
+    const base64Promise = new Promise((resolve, reject) => {
+      reader.onload = () => {
+        // Get the base64 string
+        const base64String = reader.result
+        resolve(base64String)
+      }
+      reader.onerror = () => reject(new Error("Failed to read image file"))
+      reader.readAsDataURL(file)
+    })
 
-    // Update the patient record with the new profile URL
-    const { error: updateError } = await supabase.from("mothers").update({ profile_url: url }).eq("id", patientId)
+    const base64Image = await base64Promise
+
+    // Update the patient record with the base64 image data
+    const { error: updateError } = await supabase
+      .from("mothers")
+      .update({ profile_url: base64Image })
+      .eq("user_id", patientId)
 
     if (updateError) throw updateError
 
     return {
       success: true,
-      url: url,
+      url: base64Image,
     }
   } catch (error) {
     console.error("Error uploading patient image:", error.message)

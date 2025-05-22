@@ -5,7 +5,7 @@ import Signup from "./components/Signup"
 import Signin from "./components/Signin"
 import Dashboard from "./components/Dashboard"
 import PrivateRoute from "./components/PrivateRoute"
-import AdminLoading from "./components/AdminLoading" 
+import AdminLoading from "./components/AdminLoading"
 import AdminProfilePage from "./admin/pages/AdminProfilePage"
 
 // Lazy load admin components
@@ -112,13 +112,9 @@ export const router = createBrowserRouter([
         ),
       },
       {
-    path: "/admin/profile",
-    element: (
-      <PrivateRoute>
-        <AdminProfilePage />
-      </PrivateRoute>
-    ),
-  },
+        path: "admin/profile",
+        element: <AdminProfilePage />,
+      },
     ],
   },
 ])
