@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { UserAuth } from "../../context/AuthContext"
 import { Settings, Bell, Moon, Sun, Globe, Lock, AlertCircle, Check, Eye, EyeOff } from "lucide-react"
 import AdminSidebar from "../components/AdminSidebar"
 import AdminHeader from "../components/AdminHeader"
 import { useLocation } from "react-router-dom"
+import { supabase } from "../../supabaseClient"
 
 const SettingsPage = () => {
   const { session, userData, signOut } = UserAuth()
@@ -13,6 +14,7 @@ const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState("general")
   const [success, setSuccess] = useState(null)
   const [error, setError] = useState(null)
+  const [loading, setLoading] = useState(false)
   const location = useLocation()
 
   // General settings state
@@ -40,6 +42,80 @@ const SettingsPage = () => {
   })
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
+
+  // Fetch settings on component mount
+  useEffect(() => {
+    if (session && session.user) {
+      fetchSettings()
+    }
+  }, [session])
+
+  const fetchSettings = async () => {
+    setLoading(true)
+    try {
+      // Fetch admin settings from Supabase
+      const { data, error } = await supabase
+        .from("admin_settings")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .maybeSingle()
+
+      if (error && error.code !== "PGRST116") {
+        // PGRST116 means no rows returned, which is fine for new users
+        throw error
+      }
+
+      if (data) {
+        // Update state with fetched settings
+        setGeneralSettings({
+          siteName: data.site_name || "CareSync Admin",
+          language: data.language || "en",
+          timeZone: data.time_zone || "UTC",
+          theme: data.theme || "light",
+        })
+
+        setNotificationSettings({
+          emailNotifications: data.email_notifications ?? true,
+          smsNotifications: data.sms_notifications ?? false,
+          appNotifications: data.app_notifications ?? true,
+          dailyReports: data.daily_reports ?? true,
+          weeklyReports: data.weekly_reports ?? true,
+        })
+      } else {
+        // Create default settings for new user
+        await createDefaultSettings()
+      }
+    } catch (err) {
+      console.error("Error fetching settings:", err.message)
+      setError("Failed to load settings. Please try again.")
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const createDefaultSettings = async () => {
+    try {
+      const defaultSettings = {
+        user_id: session.user.id,
+        site_name: "CareSync Admin",
+        language: "en",
+        time_zone: "UTC",
+        theme: "light",
+        email_notifications: true,
+        sms_notifications: false,
+        app_notifications: true,
+        daily_reports: true,
+        weekly_reports: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+
+      await supabase.from("admin_settings").insert(defaultSettings)
+    } catch (err) {
+      console.error("Error creating default settings:", err.message)
+    }
+  }
 
   const handleSignOut = async () => {
     await signOut()
@@ -69,19 +145,65 @@ const SettingsPage = () => {
     }))
   }
 
-  const saveGeneralSettings = () => {
-    // In a real app, this would be an API call to save settings
-    setSuccess("General settings saved successfully")
-    setTimeout(() => setSuccess(null), 3000)
+  const saveGeneralSettings = async () => {
+    setLoading(true)
+    try {
+      const { error } = await supabase
+        .from("admin_settings")
+        .update({
+          site_name: generalSettings.siteName,
+          language: generalSettings.language,
+          time_zone: generalSettings.timeZone,
+          theme: generalSettings.theme,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", session.user.id)
+
+      if (error) throw error
+
+      setSuccess("General settings saved successfully")
+      setTimeout(() => setSuccess(null), 3000)
+
+      // Apply theme change if needed
+      document.documentElement.classList.toggle("dark", generalSettings.theme === "dark")
+    } catch (err) {
+      console.error("Error saving general settings:", err.message)
+      setError("Failed to save settings. Please try again.")
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const saveNotificationSettings = () => {
-    // In a real app, this would be an API call to save settings
-    setSuccess("Notification settings saved successfully")
-    setTimeout(() => setSuccess(null), 3000)
+  const saveNotificationSettings = async () => {
+    setLoading(true)
+    try {
+      const { error } = await supabase
+        .from("admin_settings")
+        .update({
+          email_notifications: notificationSettings.emailNotifications,
+          sms_notifications: notificationSettings.smsNotifications,
+          app_notifications: notificationSettings.appNotifications,
+          daily_reports: notificationSettings.dailyReports,
+          weekly_reports: notificationSettings.weeklyReports,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", session.user.id)
+
+      if (error) throw error
+
+      setSuccess("Notification settings saved successfully")
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (err) {
+      console.error("Error saving notification settings:", err.message)
+      setError("Failed to save notification settings. Please try again.")
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const savePassword = () => {
+  const savePassword = async () => {
     // Validate passwords
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       setError("New passwords do not match")
@@ -93,17 +215,43 @@ const SettingsPage = () => {
       return
     }
 
-    // In a real app, this would be an API call to change password
-    setSuccess("Password changed successfully")
-    setPasswordForm({
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    })
-    setTimeout(() => {
-      setSuccess(null)
-      setError(null)
-    }, 3000)
+    setLoading(true)
+    try {
+      // Update password using Supabase Auth
+      const { error } = await supabase.auth.updateUser({
+        password: passwordForm.newPassword,
+      })
+
+      if (error) throw error
+
+      setSuccess("Password changed successfully")
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      })
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (err) {
+      console.error("Error changing password:", err.message)
+      setError("Failed to change password. Please try again.")
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Apply theme on component mount and when theme changes
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", generalSettings.theme === "dark")
+  }, [generalSettings.theme])
+
+  if (loading && !generalSettings.siteName) {
+    return (
+      <div className="flex justify-center items-center h-screen bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500"></div>
+        <p className="ml-3 text-lg text-gray-700">Loading settings...</p>
+      </div>
+    )
   }
 
   return (
@@ -259,9 +407,10 @@ const SettingsPage = () => {
                       <div className="pt-5">
                         <button
                           onClick={saveGeneralSettings}
-                          className="px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700"
+                          className="px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 disabled:opacity-50"
+                          disabled={loading}
                         >
-                          Save Settings
+                          {loading ? "Saving..." : "Save Settings"}
                         </button>
                       </div>
                     </div>
@@ -361,9 +510,10 @@ const SettingsPage = () => {
                       <div className="pt-5">
                         <button
                           onClick={saveNotificationSettings}
-                          className="px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700"
+                          className="px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 disabled:opacity-50"
+                          disabled={loading}
                         >
-                          Save Settings
+                          {loading ? "Saving..." : "Save Settings"}
                         </button>
                       </div>
                     </div>
@@ -406,9 +556,10 @@ const SettingsPage = () => {
                       <div className="pt-5">
                         <button
                           onClick={saveGeneralSettings}
-                          className="px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700"
+                          className="px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 disabled:opacity-50"
+                          disabled={loading}
                         >
-                          Save Settings
+                          {loading ? "Saving..." : "Save Settings"}
                         </button>
                       </div>
                     </div>
@@ -491,9 +642,10 @@ const SettingsPage = () => {
                       <div className="pt-5">
                         <button
                           onClick={savePassword}
-                          className="px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700"
+                          className="px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 disabled:opacity-50"
+                          disabled={loading}
                         >
-                          Update Password
+                          {loading ? "Updating..." : "Update Password"}
                         </button>
                       </div>
                     </div>
