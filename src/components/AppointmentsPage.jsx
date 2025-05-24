@@ -1,4 +1,3 @@
-"use client"
 import { useState, useEffect, useMemo } from "react"
 import { UserAuth } from "../context/AuthContext"
 import {
@@ -21,6 +20,7 @@ const AppointmentsPage = () => {
   const [statusFilter, setStatusFilter] = useState("all")
   const [dateFilter, setDateFilter] = useState("all")
   const [showFilters, setShowFilters] = useState(false)
+  const [selectedAppointment, setSelectedAppointment] = useState(null) // New state for in-page video
   const { pendingAppointments, removeFromPending } = useSocketNotifications()
 
   useEffect(() => {
@@ -121,7 +121,6 @@ const AppointmentsPage = () => {
     try {
       console.log("Accepting appointment:", appointment)
 
-      // Validate appointment data
       if (!appointment.doctor_id) {
         console.error("Missing doctor_id in appointment:", appointment)
         setError("Invalid appointment data: missing doctor_id")
@@ -140,19 +139,13 @@ const AppointmentsPage = () => {
         return
       }
 
-      // Accept the temporary appointment
       const result = await acceptTemporaryAppointment(appointment.id || appointment.appointmentId)
 
       if (result.success) {
         console.log("Successfully accepted appointment:", result.data)
-
-        // Add to database appointments
         setAppointments((prev) => [...prev, result.data])
-
-        // Remove from pending appointments in the hook's state and localStorage
         removeFromPending(appointment.id || appointment.appointmentId)
 
-        // Store the video conference link but don't automatically open it
         if (result.data.video_conference_link) {
           console.log("Video conference link available:", result.data.video_conference_link)
         } else {
@@ -160,7 +153,6 @@ const AppointmentsPage = () => {
         }
       } else {
         console.error("Failed to accept appointment:", result.error)
-        // If database save fails, show error
         setError("Failed to accept appointment. Please check your connection.")
       }
     } catch (err) {
@@ -211,14 +203,11 @@ const AppointmentsPage = () => {
     return new Date(dateString) > new Date()
   }
 
-  // Handle image error by replacing with User icon
   const handleImageError = (e) => {
-    // Replace the image with a div containing the User icon
     const parent = e.target.parentNode
     const iconDiv = document.createElement("div")
     iconDiv.className = e.target.className + " flex items-center justify-center bg-gray-200"
 
-    // Create an SVG element for the User icon
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
     svg.setAttribute("width", "60%")
     svg.setAttribute("height", "60%")
@@ -229,7 +218,6 @@ const AppointmentsPage = () => {
     svg.setAttribute("stroke-linecap", "round")
     svg.setAttribute("stroke-linejoin", "round")
 
-    // User icon path
     const path1 = document.createElementNS("http://www.w3.org/2000/svg", "path")
     path1.setAttribute("d", "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2")
     svg.appendChild(path1)
@@ -363,13 +351,23 @@ const AppointmentsPage = () => {
                         </>
                       )}
                       {appointment.status === "accepted" && isUpcoming(appointment.requested_time) && (
-                        <button
-                          onClick={() => joinMeeting(appointment.video_conference_link)}
-                          className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-5 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-500 focus:outline-none focus:border-blue-700 focus:shadow-outline-blue active:bg-blue-700 transition ease-in-out duration-150"
-                        >
-                          <Video className="h-4 w-4 mr-1" />
-                          Join Meeting
-                        </button>
+                        <>
+                          <button
+                            onClick={() => joinMeeting(appointment.video_conference_link)}
+                            className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-5 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-500 focus:outline-none focus:border-blue-700 focus:shadow-outline-blue active:bg-blue-700 transition ease-in-out duration-150"
+                          >
+                            <Video className="h-4 w-4 mr-1" />
+                            Join Meeting
+                          </button>
+                          {/* New "Join In-Page" button */}
+                          <button
+                            onClick={() => setSelectedAppointment(appointment)}
+                            className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-5 font-medium rounded-md text-white bg-purple-600 hover:bg-purple-500 focus:outline-none focus:border-purple-700 focus:shadow-outline-purple active:bg-purple-700 transition ease-in-out duration-150"
+                          >
+                            <Video className="h-4 w-4 mr-1" />
+                            Join In-Page
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -394,6 +392,25 @@ const AppointmentsPage = () => {
           <Calendar className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No appointments</h3>
           <p className="mt-1 text-sm text-gray-500">There are no appointments matching your current filters.</p>
+        </div>
+      )}
+      {/* New section for displaying the Jitsi video conference */}
+      {selectedAppointment && (
+        <div className="mt-8 p-4 bg-gray-100 rounded-md">
+          <h2 className="text-xl font-bold mb-4">Video Conference</h2>
+          <iframe
+            src={selectedAppointment.video_conference_link}
+            allow="camera; microphone; fullscreen"
+            width="100%"
+            height="600px"
+            frameBorder="0"
+          ></iframe>
+          <button
+            onClick={() => setSelectedAppointment(null)}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md"
+          >
+            Close Meeting
+          </button>
         </div>
       )}
     </div>
