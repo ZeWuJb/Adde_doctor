@@ -19,7 +19,7 @@ const PatientsPage = lazy(() => import("./admin/pages/PatientsPage"))
 const SystemMonitoringPage = lazy(() => import("./admin/pages/SystemMonitoringPage"))
 const UserRolesPage = lazy(() => import("./admin/pages/UserRolesPage"))
 
-export const router = createBrowserRouter([
+const router = createBrowserRouter([
   { path: "/", element: <App /> },
   { path: "/signup", element: <Signup /> },
   { path: "/signin", element: <Signin /> },
@@ -33,7 +33,6 @@ export const router = createBrowserRouter([
       { path: "appointments", element: <Dashboard /> },
       { path: "availability", element: <Dashboard /> },
       { path: "statistics", element: <Dashboard /> },
-      { path: "patients", element: <Dashboard /> },
       { path: "reports", element: <Dashboard /> },
       { path: "settings", element: <Dashboard /> },
       { path: "help", element: <Dashboard /> },
@@ -118,3 +117,5 @@ export const router = createBrowserRouter([
     ],
   },
 ])
+
+export { router }

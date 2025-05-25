@@ -13,7 +13,6 @@ import {
   ChevronRight,
   Heart,
   Activity,
-  Users,
   Settings,
   FileText,
   HelpCircle,
@@ -31,7 +30,6 @@ import AvailabilityManager from "./AvailabilityManager"
 import ProfilePage from "./ProfilePage"
 import AppointmentsPage from "./AppointmentsPage"
 import StatisticsPage from "./StatisticsPage"
-import PatientsPage from "./PatientsPage"
 import ReportsPage from "./ReportsPage"
 import SettingsPage from "./SettingsPage"
 import HelpPage from "./HelpPage"
@@ -41,9 +39,11 @@ import ConnectionStatus from "./ConnectionStatus"
 
 import { useNavigate, useLocation } from "react-router-dom"
 import { useSocketNotifications } from "../hooks/useSocketNotifications"
+import { supabase } from "../supabaseClient"
+import { getImageSrc } from "../services/imageService"
 
 const DoctorDashboard = () => {
-  const { session, userData, signOut } = UserAuth()
+  const { session, signOut } = UserAuth()
   const [doctorId, setDoctorId] = useState(null)
   const [appointments, setAppointments] = useState([])
   const [statistics, setStatistics] = useState(null)
@@ -53,15 +53,38 @@ const DoctorDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarMinimized, setSidebarMinimized] = useState(false)
   const { pendingAppointments, removeFromPending } = useSocketNotifications()
+  const [userData, setUserData] = useState(null)
+  const [isMobile, setIsMobile] = useState(false)
 
   const navigate = useNavigate()
   const location = useLocation()
 
+  // Handle screen size changes
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768
+      setIsMobile(mobile)
+
+      // Auto-close sidebar on mobile when screen gets too small
+      if (mobile) {
+        setSidebarOpen(false)
+        setSidebarMinimized(false)
+      }
+    }
+
+    // Initial check
+    handleResize()
+
+    // Add event listener
+    window.addEventListener("resize", handleResize)
+
+    // Cleanup
+    return () => window.removeEventListener("resize", handleResize)
+  }, [])
+
   // Use userData directly if available
   useEffect(() => {
-    if (userData && userData.id) {
-      setDoctorId(userData.id)
-    } else if (session?.user?.id) {
+    if (session?.user?.id) {
       // Fallback to fetching doctor ID if userData is not available
       const fetchDoctorId = async () => {
         try {
@@ -81,7 +104,7 @@ const DoctorDashboard = () => {
 
       fetchDoctorId()
     }
-  }, [session, userData])
+  }, [session])
 
   // Then, fetch data once we have the doctor ID
   useEffect(() => {
@@ -156,6 +179,66 @@ const DoctorDashboard = () => {
     }, 60000) // Refresh every minute
 
     return () => clearInterval(refreshInterval)
+  }, [doctorId])
+
+  // Add this after the existing useEffect for fetching doctor ID
+  useEffect(() => {
+    const fetchDoctorProfile = async () => {
+      if (!doctorId) return
+
+      try {
+        // Fetch doctor profile including profile_url
+        const { data: doctorProfile, error } = await supabase
+          .from("doctors")
+          .select("profile_url, full_name")
+          .eq("id", doctorId)
+          .single()
+
+        if (error) {
+          console.error("Error fetching doctor profile:", error)
+          return
+        }
+
+        // Update userData with profile information
+        if (doctorProfile) {
+          setUserData({
+            profile_url: doctorProfile.profile_url,
+            full_name: doctorProfile.full_name,
+          })
+        }
+      } catch (err) {
+        console.error("Error fetching doctor profile:", err)
+      }
+    }
+
+    fetchDoctorProfile()
+
+    // Set up real-time subscription for profile updates
+    if (doctorId) {
+      const subscription = supabase
+        .channel(`doctor-profile-${doctorId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "doctors",
+            filter: `id=eq.${doctorId}`,
+          },
+          (payload) => {
+            console.log("Doctor profile updated:", payload.new)
+            setUserData({
+              profile_url: payload.new.profile_url,
+              full_name: payload.new.full_name,
+            })
+          },
+        )
+        .subscribe()
+
+      return () => {
+        subscription.unsubscribe()
+      }
+    }
   }, [doctorId])
 
   const handleSignOut = async () => {
@@ -242,7 +325,13 @@ const DoctorDashboard = () => {
   }
 
   const toggleSidebarMinimized = () => {
-    setSidebarMinimized(!sidebarMinimized)
+    if (!isMobile) {
+      setSidebarMinimized(!sidebarMinimized)
+    }
+  }
+
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen)
   }
 
   // Get page title based on current route
@@ -258,8 +347,6 @@ const DoctorDashboard = () => {
         return "Availability Schedule"
       case "/statistics":
         return "Statistics & Analytics"
-      case "/patients":
-        return "Expectant Mothers"
       case "/reports":
         return "Medical Reports"
       case "/settings":
@@ -273,55 +360,87 @@ const DoctorDashboard = () => {
 
   return (
     <div className="flex h-screen bg-gray-50">
+      {/* Sidebar Overlay for Mobile */}
+      {isMobile && sidebarOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* Sidebar */}
       <div
         className={`fixed inset-y-0 left-0 z-50 transition-all duration-300 ease-in-out ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0 ${sidebarMinimized ? "md:w-20" : "w-64"}`}
+          isMobile
+            ? (sidebarOpen ? "translate-x-0" : "-translate-x-full") + " w-64"
+            : (sidebarOpen || !isMobile ? "translate-x-0" : "-translate-x-full") +
+              (sidebarMinimized ? " w-20" : " w-64")
+        }`}
       >
         <div className="flex flex-col h-full bg-white border-r border-gray-100 shadow-sm">
           {/* Header */}
           <div className="flex items-center justify-between h-16 px-6 bg-gradient-to-r from-pink-500 to-purple-600 text-white">
-            <div className={`flex items-center ${sidebarMinimized ? "hidden" : "block"}`}>
+            <div className={`flex items-center ${sidebarMinimized && !isMobile ? "hidden" : "block"}`}>
               <Heart className="mr-2" size={20} />
               <span className="text-xl font-bold">CareSync</span>
             </div>
 
-            {/* Toggle Button */}
-            <button
-              onClick={toggleSidebarMinimized}
-              className="md:flex hidden items-center justify-center w-8 h-8 rounded-md bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors"
-              aria-label={sidebarMinimized ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              {sidebarMinimized ? (
-                <ChevronRight size={18} className="text-white" />
-              ) : (
-                <ChevronLeft size={18} className="text-white" />
+            {/* Toggle Buttons */}
+            <div className="flex items-center space-x-2">
+              {/* Mobile Close Button */}
+              {isMobile && (
+                <button
+                  onClick={toggleSidebar}
+                  className="flex items-center justify-center w-8 h-8 rounded-md bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors"
+                  aria-label="Close sidebar"
+                >
+                  <X size={18} className="text-white" />
+                </button>
               )}
-            </button>
+
+              {/* Desktop Minimize/Expand Button */}
+              {!isMobile && (
+                <button
+                  onClick={toggleSidebarMinimized}
+                  className="flex items-center justify-center w-8 h-8 rounded-md bg-white bg-opacity-20 hover:bg-opacity-30 transition-colors"
+                  aria-label={sidebarMinimized ? "Expand sidebar" : "Collapse sidebar"}
+                >
+                  {sidebarMinimized ? (
+                    <ChevronRight size={18} className="text-white" />
+                  ) : (
+                    <ChevronLeft size={18} className="text-white" />
+                  )}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* User Information */}
           <div className="flex flex-col items-center py-6 border-b border-gray-100">
             <div
-              className={`relative ${sidebarMinimized ? "w-10 h-10" : "w-16 h-16 mb-2"} rounded-full bg-pink-50 flex items-center justify-center border-2 border-pink-100`}
+              className={`relative ${sidebarMinimized && !isMobile ? "w-10 h-10" : "w-16 h-16 mb-2"} rounded-full bg-pink-50 flex items-center justify-center border-2 border-pink-100 overflow-hidden`}
             >
-              {session?.user?.user_metadata?.avatar_url ? (
+              {userData?.profile_url ? (
                 <img
-                  src={session.user.user_metadata.avatar_url || "/placeholder.svg?height=64&width=64"}
+                  src={getImageSrc(userData.profile_url) || "/placeholder.svg"}
                   alt="Profile"
-                  className={`w-full h-full rounded-full object-cover ${sidebarMinimized ? "rounded-sm" : ""}`}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    console.log("Image failed to load:", userData.profile_url)
+                    e.target.style.display = "none"
+                    e.target.nextSibling.style.display = "flex"
+                  }}
                 />
-              ) : (
-                <User size={sidebarMinimized ? 18 : 28} className="text-pink-600" />
-              )}
+              ) : null}
+              <User
+                size={sidebarMinimized && !isMobile ? 18 : 28}
+                className="text-pink-600"
+                style={{ display: userData?.profile_url ? "none" : "flex" }}
+              />
             </div>
 
             {/* User Info Text - Only visible when expanded */}
-            {!sidebarMinimized && (
+            {(!sidebarMinimized || isMobile) && (
               <>
                 <h2 className="text-lg font-medium text-gray-800 mt-2">
-                  {userData?.full_name || session?.userData?.full_name || "Doctor"}
+                  {userData?.full_name || session?.user?.user_metadata?.full_name || "Doctor"}
                 </h2>
                 <p className="text-sm text-gray-500">{session?.user?.email}</p>
               </>
@@ -329,7 +448,7 @@ const DoctorDashboard = () => {
           </div>
 
           {/* Navigation */}
-          <nav className={`flex-1 overflow-y-auto ${sidebarMinimized ? "px-2" : "px-4"} py-4`}>
+          <nav className={`flex-1 overflow-y-auto ${sidebarMinimized && !isMobile ? "px-2" : "px-4"} py-4`}>
             <ul className="space-y-1.5">
               {[
                 { name: "Dashboard", icon: Activity, path: "/dashboard" },
@@ -337,27 +456,29 @@ const DoctorDashboard = () => {
                 { name: "Appointments", icon: Clock, path: "/appointments" },
                 { name: "Availability", icon: Calendar, path: "/availability" },
                 { name: "Statistics", icon: BarChart, path: "/statistics" },
-                { name: "Patients", icon: Users, path: "/patients" },
                 { name: "Reports", icon: FileText, path: "/reports" },
                 { name: "Settings", icon: Settings, path: "/settings" },
                 { name: "Help", icon: HelpCircle, path: "/help" },
               ].map((item) => (
                 <li key={item.name}>
                   <button
-                    onClick={() => navigate(item.path)}
+                    onClick={() => {
+                      navigate(item.path)
+                      if (isMobile) setSidebarOpen(false)
+                    }}
                     className={`flex items-center w-full py-2.5 rounded-lg transition-all ${
                       location.pathname === item.path
                         ? "bg-pink-500 text-white font-medium"
                         : "text-gray-400 hover:bg-gray-100 hover:text-pink-600"
-                    } ${sidebarMinimized ? "justify-center px-2" : "px-4"}`}
+                    } ${sidebarMinimized && !isMobile ? "justify-center px-2" : "px-4"}`}
                     title={item.name}
                   >
                     <item.icon
-                      className={`${sidebarMinimized ? "" : "mr-3"} h-5 w-5 ${
+                      className={`${sidebarMinimized && !isMobile ? "" : "mr-3"} h-5 w-5 ${
                         location.pathname === item.path ? "text-white" : "text-gray-400"
                       }`}
                     />
-                    {!sidebarMinimized && <span className="flex-1">{item.name}</span>}
+                    {(!sidebarMinimized || isMobile) && <span className="flex-1">{item.name}</span>}
                   </button>
                 </li>
               ))}
@@ -369,37 +490,43 @@ const DoctorDashboard = () => {
             <button
               onClick={handleSignOut}
               className={`flex items-center justify-center w-full px-4 py-2 text-sm rounded-lg transition-all ${
-                sidebarMinimized
+                sidebarMinimized && !isMobile
                   ? "bg-red-500 hover:bg-red-600 text-white p-2"
                   : "text-red-600 hover:bg-red-50 hover:text-red-700"
               }`}
               title="Sign Out"
             >
               <LogOut
-                className={`${sidebarMinimized ? "" : "mr-2"} ${sidebarMinimized ? "text-white" : "text-red-500"}`}
+                className={`${sidebarMinimized && !isMobile ? "" : "mr-2"} ${sidebarMinimized && !isMobile ? "text-white" : "text-red-500"}`}
                 size={20}
               />
-              {!sidebarMinimized && <span>Sign Out</span>}
+              {(!sidebarMinimized || isMobile) && <span>Sign Out</span>}
             </button>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className={`flex-1 w-full transition-all duration-300 ${sidebarMinimized ? "md:ml-20" : "md:ml-64"}`}>
+      <div
+        className={`flex-1 w-full transition-all duration-300 ${
+          isMobile ? "ml-0" : sidebarMinimized ? "ml-20" : "ml-64"
+        }`}
+      >
         {/* Top Navigation */}
         <header className="bg-white shadow-sm border-b border-gray-100">
           <div className="flex items-center justify-between h-16 px-6">
             <div className="flex items-center">
               <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg md:hidden focus:outline-none"
+                onClick={toggleSidebar}
+                className={`p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg focus:outline-none ${
+                  isMobile ? "block" : "hidden"
+                }`}
                 aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
               >
                 {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
               </button>
 
-              <div className="ml-4 md:ml-0">
+              <div className={`${isMobile ? "ml-4" : "ml-0"}`}>
                 <h2 className="text-lg font-medium text-gray-800">{getPageTitle()}</h2>
                 <p className="text-sm text-gray-500">
                   {new Date().toLocaleDateString("en-US", {
@@ -415,21 +542,7 @@ const DoctorDashboard = () => {
             <div className="flex items-center space-x-4">
               <NotificationsPanel />
 
-              <div className="relative">
-                <button onClick={() => navigate("/profile")} className="flex items-center focus:outline-none">
-                  <div className="w-9 h-9 rounded-full bg-pink-50 flex items-center justify-center border border-pink-100">
-                    {session?.user?.user_metadata?.avatar_url ? (
-                      <img
-                        src={session.user.user_metadata.avatar_url || "/placeholder.svg?height=36&width=36"}
-                        alt="Profile"
-                        className="w-full h-full rounded-full object-cover"
-                      />
-                    ) : (
-                      <User size={18} className="text-pink-600" />
-                    )}
-                  </div>
-                </button>
-              </div>
+              {/* Also update the top navigation avatar */}
             </div>
           </div>
         </header>
@@ -465,8 +578,6 @@ const DoctorDashboard = () => {
                 return <AvailabilityManager />
               case "/statistics":
                 return <StatisticsPage />
-              case "/patients":
-                return <PatientsPage />
               case "/reports":
                 return <ReportsPage />
               case "/settings":

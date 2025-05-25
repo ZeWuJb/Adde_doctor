@@ -2,33 +2,26 @@
 
 import { useState, useEffect } from "react"
 import { UserAuth } from "../context/AuthContext"
+import { supabase } from "../supabaseClient"
 import { getDoctorIdFromUserId } from "../services/appointmentService"
-import { fetchDoctorSettings, updateDoctorSettings, updateDoctorPassword } from "../services/settingsService"
-import {
-  Settings,
-  Bell,
-  Moon,
-  Sun,
-  Globe,
-  Clock,
-  Lock,
-  Save,
-  AlertCircle,
-  Check,
-  Eye,
-  EyeOff,
-  Calendar,
-} from "lucide-react"
+import { Bell, Lock, Save, AlertCircle, Check, Eye, EyeOff, X } from "lucide-react"
 
 const SettingsPage = () => {
   const { session } = UserAuth()
   const [doctorId, setDoctorId] = useState(null)
-  const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
-  const [activeTab, setActiveTab] = useState("general")
+  const [activeTab, setActiveTab] = useState("notifications")
+
+  // Notification settings state
+  const [notificationSettings, setNotificationSettings] = useState({
+    emailNotifications: true,
+    smsNotifications: false,
+    appointmentReminders: true,
+    reminderHours: 24,
+  })
 
   // Password change state
   const [passwordForm, setPasswordForm] = useState({
@@ -38,97 +31,54 @@ const SettingsPage = () => {
   })
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
-  const [passwordError, setPasswordError] = useState(null)
-  const [passwordSuccess, setPasswordSuccess] = useState(null)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
-  // First, get the doctor ID
+  // Fetch doctor data and settings
   useEffect(() => {
-    const fetchDoctorId = async () => {
+    const fetchDoctorData = async () => {
       if (!session?.user?.id) return
 
       try {
-        const result = await getDoctorIdFromUserId(session.user.id)
-        if (result.success) {
-          setDoctorId(result.doctorId)
-        } else {
-          setError("Failed to retrieve doctor information")
-          setLoading(false)
-        }
-      } catch (err) {
-        console.error("Error fetching doctor ID:", err)
-        setError("An unexpected error occurred")
-        setLoading(false)
-      }
-    }
-
-    fetchDoctorId()
-  }, [session])
-
-  // Then, load settings once we have the doctor ID
-  useEffect(() => {
-    const loadSettings = async () => {
-      if (!doctorId) return
-
-      try {
         setLoading(true)
-        const result = await fetchDoctorSettings(doctorId)
-        if (result.success) {
-          setSettings(result.data)
-        } else {
-          setError("Failed to load settings")
+
+        // Get doctor ID
+        const doctorResult = await getDoctorIdFromUserId(session.user.id)
+        if (!doctorResult.success) throw new Error("Failed to get doctor ID")
+
+        setDoctorId(doctorResult.doctorId)
+
+        // Try to get existing notification settings
+        const { data: settings } = await supabase
+          .from("doctor_settings")
+          .select("*")
+          .eq("doctor_id", doctorResult.doctorId)
+          .single()
+
+        if (settings) {
+          setNotificationSettings({
+            emailNotifications: settings.email_notifications ?? true,
+            smsNotifications: settings.sms_notifications ?? false,
+            appointmentReminders: settings.appointment_reminders ?? true,
+            reminderHours: settings.reminder_hours || 24,
+          })
         }
       } catch (err) {
-        console.error("Error loading settings:", err)
-        setError("An unexpected error occurred")
+        console.error("Error fetching doctor data:", err)
+        setError("Failed to load settings. Please try again.")
       } finally {
         setLoading(false)
       }
     }
 
-    loadSettings()
-  }, [doctorId])
+    fetchDoctorData()
+  }, [session])
 
-  const handleSettingChange = (e) => {
+  const handleNotificationChange = (e) => {
     const { name, value, type, checked } = e.target
-    setSettings((prev) => ({
+    setNotificationSettings((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }))
-  }
-
-  const handleSaveSettings = async () => {
-    try {
-      setSaving(true)
-      setError(null)
-      setSuccess(null)
-
-      const result = await updateDoctorSettings(doctorId, settings)
-      if (result.success) {
-        setSettings(result.data)
-        setSuccess("Settings saved successfully")
-
-        // If theme was changed, apply it
-        if (settings.theme === "dark") {
-          document.documentElement.classList.add("dark")
-        } else {
-          document.documentElement.classList.remove("dark")
-        }
-      } else {
-        setError("Failed to save settings")
-      }
-    } catch (err) {
-      console.error("Error saving settings:", err)
-      setError("An unexpected error occurred")
-    } finally {
-      setSaving(false)
-
-      // Clear success message after 3 seconds
-      if (success) {
-        setTimeout(() => {
-          setSuccess(null)
-        }, 3000)
-      }
-    }
   }
 
   const handlePasswordChange = (e) => {
@@ -139,49 +89,95 @@ const SettingsPage = () => {
     }))
   }
 
-  const handleSavePassword = async () => {
+  const saveNotifications = async () => {
     try {
       setSaving(true)
-      setPasswordError(null)
-      setPasswordSuccess(null)
+      setError(null)
+
+      const settingsData = {
+        doctor_id: doctorId,
+        email_notifications: notificationSettings.emailNotifications,
+        sms_notifications: notificationSettings.smsNotifications,
+        appointment_reminders: notificationSettings.appointmentReminders,
+        reminder_hours: notificationSettings.reminderHours,
+        updated_at: new Date().toISOString(),
+      }
+
+      // Check if settings exist
+      const { data: existingSettings } = await supabase
+        .from("doctor_settings")
+        .select("id")
+        .eq("doctor_id", doctorId)
+        .single()
+
+      if (existingSettings) {
+        const { error } = await supabase.from("doctor_settings").update(settingsData).eq("doctor_id", doctorId)
+
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from("doctor_settings").insert({
+          ...settingsData,
+          created_at: new Date().toISOString(),
+        })
+
+        if (error) throw error
+      }
+
+      setSuccess("Notification settings saved successfully!")
+    } catch (err) {
+      console.error("Error saving notification settings:", err)
+      setError("Failed to save notification settings. Please try again.")
+    } finally {
+      setSaving(false)
+      setTimeout(() => setSuccess(null), 3000)
+    }
+  }
+
+  const savePassword = async () => {
+    try {
+      setSaving(true)
+      setError(null)
 
       // Validate passwords
       if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-        setPasswordError("New passwords do not match")
-        setSaving(false)
+        setError("New passwords do not match")
         return
       }
 
       if (passwordForm.newPassword.length < 8) {
-        setPasswordError("Password must be at least 8 characters long")
-        setSaving(false)
+        setError("Password must be at least 8 characters long")
         return
       }
 
-      const result = await updateDoctorPassword(passwordForm.currentPassword, passwordForm.newPassword)
-      if (result.success) {
-        setPasswordSuccess("Password updated successfully")
-        setPasswordForm({
-          currentPassword: "",
-          newPassword: "",
-          confirmPassword: "",
-        })
-      } else {
-        setPasswordError(result.error?.message || "Failed to update password")
-      }
+      // Update password using Supabase Auth
+      const { error } = await supabase.auth.updateUser({
+        password: passwordForm.newPassword,
+      })
+
+      if (error) throw error
+
+      setSuccess("Password updated successfully!")
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      })
     } catch (err) {
       console.error("Error updating password:", err)
-      setPasswordError("An unexpected error occurred")
+      setError("Failed to update password. Please try again.")
     } finally {
       setSaving(false)
-
-      // Clear success message after 3 seconds
-      if (passwordSuccess) {
-        setTimeout(() => {
-          setPasswordSuccess(null)
-        }, 3000)
-      }
+      setTimeout(() => setSuccess(null), 3000)
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500"></div>
+        <p className="ml-3 text-lg text-gray-700">Loading settings...</p>
+      </div>
+    )
   }
 
   return (
@@ -193,384 +189,254 @@ const SettingsPage = () => {
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
-          <div className="flex items-center">
-            <AlertCircle className="h-5 w-5 mr-2" />
-            <span>{error}</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <AlertCircle className="h-5 w-5 mr-2" />
+              <span>{error}</span>
+            </div>
+            <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
+              <X className="h-4 w-4" />
+            </button>
           </div>
         </div>
       )}
 
       {success && (
         <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg">
-          <div className="flex items-center">
-            <Check className="h-5 w-5 mr-2" />
-            <span>{success}</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Check className="h-5 w-5 mr-2" />
+              <span>{success}</span>
+            </div>
+            <button onClick={() => setSuccess(null)} className="text-green-500 hover:text-green-700">
+              <X className="h-4 w-4" />
+            </button>
           </div>
         </div>
       )}
 
-      {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
-        </div>
-      ) : settings ? (
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="flex flex-col md:flex-row">
-            {/* Sidebar */}
-            <div className="md:w-64 bg-gray-50 p-6 border-r border-gray-200">
-              <nav className="space-y-1">
-                <button
-                  onClick={() => setActiveTab("general")}
-                  className={`flex items-center px-3 py-2 w-full text-left rounded-md ${
-                    activeTab === "general" ? "bg-primary-50 text-primary-600" : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  <Settings className="h-5 w-5 mr-2" />
-                  <span>General</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab("notifications")}
-                  className={`flex items-center px-3 py-2 w-full text-left rounded-md ${
-                    activeTab === "notifications" ? "bg-primary-50 text-primary-600" : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  <Bell className="h-5 w-5 mr-2" />
-                  <span>Notifications</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab("appearance")}
-                  className={`flex items-center px-3 py-2 w-full text-left rounded-md ${
-                    activeTab === "appearance" ? "bg-primary-50 text-primary-600" : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  {settings.theme === "dark" ? <Moon className="h-5 w-5 mr-2" /> : <Sun className="h-5 w-5 mr-2" />}
-                  <span>Appearance</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab("security")}
-                  className={`flex items-center px-3 py-2 w-full text-left rounded-md ${
-                    activeTab === "security" ? "bg-primary-50 text-primary-600" : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  <Lock className="h-5 w-5 mr-2" />
-                  <span>Security</span>
-                </button>
-              </nav>
-            </div>
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div className="flex flex-col md:flex-row">
+          {/* Sidebar */}
+          <div className="md:w-64 bg-gray-50 p-6 border-r border-gray-200">
+            <nav className="space-y-1">
+              <button
+                onClick={() => setActiveTab("notifications")}
+                className={`flex items-center px-3 py-2 w-full text-left rounded-md transition-colors ${
+                  activeTab === "notifications" ? "bg-pink-100 text-pink-700" : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                <Bell className="h-5 w-5 mr-2" />
+                <span>Notifications</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("security")}
+                className={`flex items-center px-3 py-2 w-full text-left rounded-md transition-colors ${
+                  activeTab === "security" ? "bg-pink-100 text-pink-700" : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                <Lock className="h-5 w-5 mr-2" />
+                <span>Security</span>
+              </button>
+            </nav>
+          </div>
 
-            {/* Content */}
-            <div className="flex-1 p-6">
-              {activeTab === "general" && (
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-800 mb-4">General Settings</h2>
+          {/* Content */}
+          <div className="flex-1 p-6">
+            {activeTab === "notifications" && (
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800 mb-6">Notification Preferences</h2>
 
-                  <div className="space-y-6">
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div>
-                      <label htmlFor="language" className="block text-sm font-medium text-gray-700 mb-1">
-                        Language
-                      </label>
-                      <div className="relative">
-                        <select
-                          id="language"
-                          name="language"
-                          value={settings.language}
-                          onChange={handleSettingChange}
-                          className="block w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                        >
-                          <option value="en">English</option>
-                          <option value="es">Spanish</option>
-                          <option value="fr">French</option>
-                          <option value="de">German</option>
-                        </select>
-                        <Globe className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-                      </div>
+                      <h3 className="text-sm font-medium text-gray-900">Email Notifications</h3>
+                      <p className="text-sm text-gray-500">Receive notifications via email</p>
                     </div>
-
-                    <div>
-                      <label htmlFor="time_zone" className="block text-sm font-medium text-gray-700 mb-1">
-                        Time Zone
-                      </label>
-                      <div className="relative">
-                        <select
-                          id="time_zone"
-                          name="time_zone"
-                          value={settings.time_zone}
-                          onChange={handleSettingChange}
-                          className="block w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                        >
-                          <option value="UTC">UTC</option>
-                          <option value="America/New_York">Eastern Time (ET)</option>
-                          <option value="America/Chicago">Central Time (CT)</option>
-                          <option value="America/Denver">Mountain Time (MT)</option>
-                          <option value="America/Los_Angeles">Pacific Time (PT)</option>
-                        </select>
-                        <Clock className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label htmlFor="calendar_view" className="block text-sm font-medium text-gray-700 mb-1">
-                        Default Calendar View
-                      </label>
-                      <div className="relative">
-                        <select
-                          id="calendar_view"
-                          name="calendar_view"
-                          value={settings.calendar_view}
-                          onChange={handleSettingChange}
-                          className="block w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                        >
-                          <option value="day">Day</option>
-                          <option value="week">Week</option>
-                          <option value="month">Month</option>
-                        </select>
-                        <Calendar className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === "notifications" && (
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-800 mb-4">Notification Settings</h2>
-
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-700">Email Notifications</h3>
-                        <p className="text-sm text-gray-500">Receive notifications via email</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          name="notification_email"
-                          checked={settings.notification_email}
-                          onChange={handleSettingChange}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                      </label>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-700">SMS Notifications</h3>
-                        <p className="text-sm text-gray-500">Receive notifications via SMS</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          name="notification_sms"
-                          checked={settings.notification_sms}
-                          onChange={handleSettingChange}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                      </label>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-700">In-App Notifications</h3>
-                        <p className="text-sm text-gray-500">Receive notifications within the app</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          name="notification_app"
-                          checked={settings.notification_app}
-                          onChange={handleSettingChange}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                      </label>
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="appointment_reminder_hours"
-                        className="block text-sm font-medium text-gray-700 mb-1"
-                      >
-                        Appointment Reminder Time (hours before)
-                      </label>
+                    <label className="relative inline-flex items-center cursor-pointer">
                       <input
-                        type="number"
-                        id="appointment_reminder_hours"
-                        name="appointment_reminder_hours"
-                        min="1"
-                        max="72"
-                        value={settings.appointment_reminder_hours}
-                        onChange={handleSettingChange}
-                        className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                        type="checkbox"
+                        name="emailNotifications"
+                        checked={notificationSettings.emailNotifications}
+                        onChange={handleNotificationChange}
+                        className="sr-only peer"
                       />
-                    </div>
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-600"></div>
+                    </label>
                   </div>
-                </div>
-              )}
 
-              {activeTab === "appearance" && (
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-800 mb-4">Appearance Settings</h2>
-
-                  <div className="space-y-6">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div>
-                      <span className="block text-sm font-medium text-gray-700 mb-3">Theme</span>
-                      <div className="flex space-x-4">
-                        <div
-                          className={`flex flex-col items-center p-4 border rounded-lg cursor-pointer ${
-                            settings.theme === "light"
-                              ? "border-primary-500 bg-primary-50"
-                              : "border-gray-200 hover:bg-gray-50"
-                          }`}
-                          onClick={() => setSettings((prev) => ({ ...prev, theme: "light" }))}
-                        >
-                          <Sun className="h-8 w-8 text-gray-700 mb-2" />
-                          <span className="text-sm font-medium">Light</span>
-                        </div>
-                        <div
-                          className={`flex flex-col items-center p-4 border rounded-lg cursor-pointer ${
-                            settings.theme === "dark"
-                              ? "border-primary-500 bg-primary-50"
-                              : "border-gray-200 hover:bg-gray-50"
-                          }`}
-                          onClick={() => setSettings((prev) => ({ ...prev, theme: "dark" }))}
-                        >
-                          <Moon className="h-8 w-8 text-gray-700 mb-2" />
-                          <span className="text-sm font-medium">Dark</span>
-                        </div>
-                      </div>
+                      <h3 className="text-sm font-medium text-gray-900">SMS Notifications</h3>
+                      <p className="text-sm text-gray-500">Receive notifications via SMS</p>
                     </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === "security" && (
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-800 mb-4">Security Settings</h2>
-
-                  {passwordError && (
-                    <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
-                      <div className="flex items-center">
-                        <AlertCircle className="h-5 w-5 mr-2" />
-                        <span>{passwordError}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {passwordSuccess && (
-                    <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg">
-                      <div className="flex items-center">
-                        <Check className="h-5 w-5 mr-2" />
-                        <span>{passwordSuccess}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-6">
-                    <div>
-                      <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-1">
-                        Current Password
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showCurrentPassword ? "text" : "password"}
-                          id="currentPassword"
-                          name="currentPassword"
-                          value={passwordForm.currentPassword}
-                          onChange={handlePasswordChange}
-                          className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                        />
-                        <button
-                          type="button"
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                          onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                        >
-                          {showCurrentPassword ? (
-                            <EyeOff className="h-5 w-5 text-gray-400" />
-                          ) : (
-                            <Eye className="h-5 w-5 text-gray-400" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1">
-                        New Password
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showNewPassword ? "text" : "password"}
-                          id="newPassword"
-                          name="newPassword"
-                          value={passwordForm.newPassword}
-                          onChange={handlePasswordChange}
-                          className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                        />
-                        <button
-                          type="button"
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                          onClick={() => setShowNewPassword(!showNewPassword)}
-                        >
-                          {showNewPassword ? (
-                            <EyeOff className="h-5 w-5 text-gray-400" />
-                          ) : (
-                            <Eye className="h-5 w-5 text-gray-400" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-                        Confirm New Password
-                      </label>
+                    <label className="relative inline-flex items-center cursor-pointer">
                       <input
-                        type="password"
+                        type="checkbox"
+                        name="smsNotifications"
+                        checked={notificationSettings.smsNotifications}
+                        onChange={handleNotificationChange}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-600"></div>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-900">Appointment Reminders</h3>
+                      <p className="text-sm text-gray-500">Get reminded about upcoming appointments</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        name="appointmentReminders"
+                        checked={notificationSettings.appointmentReminders}
+                        onChange={handleNotificationChange}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-600"></div>
+                    </label>
+                  </div>
+
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <label htmlFor="reminderHours" className="block text-sm font-medium text-gray-900 mb-2">
+                      Reminder Time (hours before appointment)
+                    </label>
+                    <input
+                      type="number"
+                      id="reminderHours"
+                      name="reminderHours"
+                      min="1"
+                      max="72"
+                      value={notificationSettings.reminderHours}
+                      onChange={handleNotificationChange}
+                      className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                    />
+                  </div>
+
+                  <div className="pt-4">
+                    <button
+                      onClick={saveNotifications}
+                      disabled={saving}
+                      className="flex items-center px-6 py-3 bg-pink-600 text-white rounded-md hover:bg-pink-700 disabled:opacity-50 transition-colors"
+                    >
+                      <Save className="h-5 w-5 mr-2" />
+                      {saving ? "Saving..." : "Save Notifications"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "security" && (
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800 mb-6">Security Settings</h2>
+
+                <div className="space-y-6">
+                  <div>
+                    <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                      Current Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showCurrentPassword ? "text" : "password"}
+                        id="currentPassword"
+                        name="currentPassword"
+                        value={passwordForm.currentPassword}
+                        onChange={handlePasswordChange}
+                        className="block w-full px-4 py-3 pr-10 border border-gray-300 rounded-md focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                        placeholder="Enter current password"
+                      />
+                      <button
+                        type="button"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      >
+                        {showCurrentPassword ? (
+                          <EyeOff className="h-5 w-5 text-gray-400" />
+                        ) : (
+                          <Eye className="h-5 w-5 text-gray-400" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                      New Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showNewPassword ? "text" : "password"}
+                        id="newPassword"
+                        name="newPassword"
+                        value={passwordForm.newPassword}
+                        onChange={handlePasswordChange}
+                        className="block w-full px-4 py-3 pr-10 border border-gray-300 rounded-md focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                        placeholder="Enter new password"
+                      />
+                      <button
+                        type="button"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                      >
+                        {showNewPassword ? (
+                          <EyeOff className="h-5 w-5 text-gray-400" />
+                        ) : (
+                          <Eye className="h-5 w-5 text-gray-400" />
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Password must be at least 8 characters long</p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                      Confirm New Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
                         id="confirmPassword"
                         name="confirmPassword"
                         value={passwordForm.confirmPassword}
                         onChange={handlePasswordChange}
-                        className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                        className="block w-full px-4 py-3 pr-10 border border-gray-300 rounded-md focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                        placeholder="Confirm new password"
                       />
-                    </div>
-
-                    <div>
                       <button
-                        onClick={handleSavePassword}
-                        disabled={saving}
-                        className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
+                        type="button"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       >
-                        {saving ? "Updating..." : "Update Password"}
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-5 w-5 text-gray-400" />
+                        ) : (
+                          <Eye className="h-5 w-5 text-gray-400" />
+                        )}
                       </button>
                     </div>
                   </div>
-                </div>
-              )}
 
-              {/* Save button for all tabs except security */}
-              {activeTab !== "security" && (
-                <div className="mt-8 pt-5 border-t border-gray-200">
-                  <div className="flex justify-end">
+                  <div className="pt-4">
                     <button
-                      onClick={handleSaveSettings}
+                      onClick={savePassword}
                       disabled={saving}
-                      className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
+                      className="flex items-center px-6 py-3 bg-pink-600 text-white rounded-md hover:bg-pink-700 disabled:opacity-50 transition-colors"
                     >
-                      <Save className="h-5 w-5 mr-2" />
-                      {saving ? "Saving..." : "Save Settings"}
+                      <Lock className="h-5 w-5 mr-2" />
+                      {saving ? "Updating..." : "Update Password"}
                     </button>
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
-      ) : null}
+      </div>
     </div>
   )
 }
 
 export default SettingsPage
-

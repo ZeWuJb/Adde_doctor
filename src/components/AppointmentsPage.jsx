@@ -1,13 +1,16 @@
+"use client"
+import PropTypes from "prop-types"
 import { useState, useEffect, useMemo } from "react"
 import { UserAuth } from "../context/AuthContext"
 import {
-  fetchDoctorAppointments,
   acceptTemporaryAppointment,
   rejectTemporaryAppointment,
   getDoctorIdFromUserId,
 } from "../services/appointmentService"
 import { Calendar, Search, Filter, ChevronDown, Video, Check, X, AlertCircle, User } from "lucide-react"
 import { useSocketNotifications } from "../hooks/useSocketNotifications"
+import { supabase } from "../supabaseClient"
+import { getImageSrc } from "../services/imageService"
 
 const AppointmentsPage = () => {
   const { session } = UserAuth()
@@ -48,11 +51,27 @@ const AppointmentsPage = () => {
       if (!doctorId) return
       try {
         setLoading(true)
-        const result = await fetchDoctorAppointments(doctorId)
-        if (result.success) {
-          setAppointments(result.data)
-        } else {
+
+        // Fetch appointments with mother profile information
+        const { data: appointmentsData, error } = await supabase
+          .from("appointments")
+          .select(`
+            *,
+            mothers:mother_id (
+              user_id,
+              full_name,
+              email,
+              profile_url
+            )
+          `)
+          .eq("doctor_id", doctorId)
+          .order("requested_time", { ascending: false })
+
+        if (error) {
+          console.error("Error fetching appointments:", error)
           setError("Failed to load appointments")
+        } else {
+          setAppointments(appointmentsData || [])
         }
       } catch (err) {
         console.error("Error loading appointments:", err)
@@ -64,9 +83,48 @@ const AppointmentsPage = () => {
     loadAppointments()
   }, [doctorId])
 
+  // Enhanced pending appointments with mother data
+  const [enhancedPendingAppointments, setEnhancedPendingAppointments] = useState([])
+
+  useEffect(() => {
+    const enhancePendingAppointments = async () => {
+      if (pendingAppointments.length === 0) {
+        setEnhancedPendingAppointments([])
+        return
+      }
+
+      try {
+        const motherIds = pendingAppointments.map((appt) => appt.mother_id).filter(Boolean)
+
+        if (motherIds.length > 0) {
+          const { data: mothersData, error } = await supabase
+            .from("mothers")
+            .select("user_id, full_name, email, profile_url")
+            .in("user_id", motherIds)
+
+          if (error) {
+            console.error("Error fetching mothers data:", error)
+            setEnhancedPendingAppointments(pendingAppointments)
+          } else {
+            const enhanced = pendingAppointments.map((appt) => ({
+              ...appt,
+              mothers: mothersData.find((mother) => mother.user_id === appt.mother_id),
+            }))
+            setEnhancedPendingAppointments(enhanced)
+          }
+        }
+      } catch (err) {
+        console.error("Error enhancing pending appointments:", err)
+        setEnhancedPendingAppointments(pendingAppointments)
+      }
+    }
+
+    enhancePendingAppointments()
+  }, [pendingAppointments])
+
   const allAppointments = useMemo(() => {
-    return [...appointments, ...pendingAppointments]
-  }, [appointments, pendingAppointments])
+    return [...appointments, ...enhancedPendingAppointments]
+  }, [appointments, enhancedPendingAppointments])
 
   useEffect(() => {
     if (!allAppointments.length) {
@@ -143,7 +201,14 @@ const AppointmentsPage = () => {
 
       if (result.success) {
         console.log("Successfully accepted appointment:", result.data)
-        setAppointments((prev) => [...prev, result.data])
+
+        // Add mother data to the accepted appointment
+        const enhancedAppointment = {
+          ...result.data,
+          mothers: appointment.mothers,
+        }
+
+        setAppointments((prev) => [...prev, enhancedAppointment])
         removeFromPending(appointment.id || appointment.appointmentId)
 
         if (result.data.video_conference_link) {
@@ -203,33 +268,34 @@ const AppointmentsPage = () => {
     return new Date(dateString) > new Date()
   }
 
-  const handleImageError = (e) => {
-    const parent = e.target.parentNode
-    const iconDiv = document.createElement("div")
-    iconDiv.className = e.target.className + " flex items-center justify-center bg-gray-200"
+  // Enhanced image component for mothers
+  const MotherAvatar = ({ mother, size = "h-10 w-10" }) => {
+    const [imageError, setImageError] = useState(false)
 
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
-    svg.setAttribute("width", "60%")
-    svg.setAttribute("height", "60%")
-    svg.setAttribute("viewBox", "0 0 24 24")
-    svg.setAttribute("fill", "none")
-    svg.setAttribute("stroke", "currentColor")
-    svg.setAttribute("stroke-width", "2")
-    svg.setAttribute("stroke-linecap", "round")
-    svg.setAttribute("stroke-linejoin", "round")
+    if (!mother?.profile_url || imageError) {
+      return (
+        <div className={`${size} rounded-full flex items-center justify-center bg-gray-200`}>
+          <User className="h-6 w-6 text-gray-500" />
+        </div>
+      )
+    }
 
-    const path1 = document.createElementNS("http://www.w3.org/2000/svg", "path")
-    path1.setAttribute("d", "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2")
-    svg.appendChild(path1)
+    return (
+      <img
+        className={`${size} rounded-full object-cover`}
+        src={getImageSrc(mother.profile_url) || "/placeholder.svg"}
+        alt={mother.full_name || "Patient"}
+        onError={() => setImageError(true)}
+      />
+    )
+  }
 
-    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle")
-    circle.setAttribute("cx", "12")
-    circle.setAttribute("cy", "7")
-    circle.setAttribute("r", "4")
-    svg.appendChild(circle)
-
-    iconDiv.appendChild(svg)
-    parent.replaceChild(iconDiv, e.target)
+  MotherAvatar.propTypes = {
+    mother: PropTypes.shape({
+      profile_url: PropTypes.string,
+      full_name: PropTypes.string,
+    }),
+    size: PropTypes.string,
   }
 
   return (
@@ -308,19 +374,8 @@ const AppointmentsPage = () => {
                 <div className="px-4 py-4 sm:px-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10 relative rounded-full overflow-hidden">
-                        {appointment.mothers?.profile_url ? (
-                          <img
-                            className="h-10 w-10 rounded-full object-cover"
-                            src={appointment.mothers?.profile_url || "/placeholder.svg"}
-                            alt={appointment.mothers?.full_name || "Patient"}
-                            onError={handleImageError}
-                          />
-                        ) : (
-                          <div className="h-10 w-10 rounded-full flex items-center justify-center bg-gray-200">
-                            <User className="h-6 w-6 text-gray-500" />
-                          </div>
-                        )}
+                      <div className="flex-shrink-0">
+                        <MotherAvatar mother={appointment.mothers} />
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">

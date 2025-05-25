@@ -107,4 +107,3 @@ export const subscribeToNotifications = (doctorId, callback) => {
 
   return subscription
 }
-

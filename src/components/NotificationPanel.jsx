@@ -1,13 +1,9 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Bell, Check } from "lucide-react"
+import { Bell, Check, X, Clock, Calendar } from "lucide-react"
 import { UserAuth } from "../context/AuthContext"
-import {
-  fetchDoctorNotifications,
-  markNotificationAsRead,
-  markAllNotificationsAsRead,
-} from "../services/notificationService"
+import { supabase } from "../supabaseClient"
 import { getDoctorIdFromUserId } from "../services/appointmentService"
 
 const NotificationsPanel = () => {
@@ -18,6 +14,12 @@ const NotificationsPanel = () => {
   const [loading, setLoading] = useState(false)
   const [doctorId, setDoctorId] = useState(null)
   const panelRef = useRef(null)
+
+  // Add this at the beginning of the component for debugging
+  useEffect(() => {
+    console.log("NotificationPanel - doctorId:", doctorId)
+    console.log("NotificationPanel - session:", session)
+  }, [doctorId, session])
 
   // Close panel when clicking outside
   useEffect(() => {
@@ -33,7 +35,7 @@ const NotificationsPanel = () => {
     }
   }, [])
 
-  // First, get the doctor ID
+  // Get doctor ID
   useEffect(() => {
     const fetchDoctorId = async () => {
       if (!session?.user?.id) return
@@ -51,19 +53,77 @@ const NotificationsPanel = () => {
     fetchDoctorId()
   }, [session])
 
-  // Then, load notifications once we have the doctor ID
+  // Load appointment-based notifications
   useEffect(() => {
     const loadNotifications = async () => {
       if (!doctorId) return
 
       try {
         setLoading(true)
-        const result = await fetchDoctorNotifications(doctorId)
 
-        if (result.success) {
-          setNotifications(result.data)
-          setUnreadCount(result.data.filter((notification) => !notification.read).length)
+        // Fetch temporary appointments (new appointment requests)
+        const { data: tempAppointments, error: tempError } = await supabase
+          .from("temporary_appointments")
+          .select(`
+          *,
+          mothers:mothers!temporary_appointments_mother_id_fkey (
+            full_name,
+            email
+          )
+        `)
+          .eq("doctor_id", doctorId)
+          .eq("status", "pending")
+          .order("created_at", { ascending: false })
+
+        if (tempError) {
+          console.error("Error fetching temporary appointments:", tempError)
         }
+
+        // Fetch recent appointments (accepted/declined)
+        const { data: appointments, error: appointmentsError } = await supabase
+          .from("appointments")
+          .select(`
+          *,
+          mothers:mothers!appointments_mother_id_fkey (
+            full_name,
+            email
+          )
+        `)
+          .eq("doctor_id", doctorId)
+          .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
+          .order("created_at", { ascending: false })
+
+        if (appointmentsError) {
+          console.error("Error fetching appointments:", appointmentsError)
+        }
+
+        // Transform data into notification format
+        const tempNotifications = (tempAppointments || []).map((appointment) => ({
+          id: `temp_${appointment.id}`,
+          type: "appointment_request",
+          message: `New appointment request from ${appointment.mothers?.full_name || "Unknown"}`,
+          data: appointment,
+          read: false,
+          created_at: appointment.created_at,
+          appointmentId: appointment.id,
+        }))
+
+        const appointmentNotifications = (appointments || []).map((appointment) => ({
+          id: `appt_${appointment.id}`,
+          type: "appointment_update",
+          message: `Appointment ${appointment.status} with ${appointment.mothers?.full_name || "Unknown"}`,
+          data: appointment,
+          read: true, // Mark appointment updates as read by default
+          created_at: appointment.updated_at || appointment.created_at,
+          appointmentId: appointment.id,
+        }))
+
+        const allNotifications = [...tempNotifications, ...appointmentNotifications]
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+          .slice(0, 20)
+
+        setNotifications(allNotifications)
+        setUnreadCount(tempNotifications.length)
       } catch (err) {
         console.error("Error loading notifications:", err)
       } finally {
@@ -73,41 +133,101 @@ const NotificationsPanel = () => {
 
     loadNotifications()
 
-    // Set up interval to refresh notifications
-    const interval = setInterval(loadNotifications, 30000) // Every 30 seconds
+    // Set up real-time subscriptions
+    if (doctorId) {
+      // Subscribe to temporary appointments (new requests)
+      const tempAppointmentSubscription = supabase
+        .channel(`temp-appointments-${doctorId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "temporary_appointments",
+            filter: `doctor_id=eq.${doctorId}`,
+          },
+          async (payload) => {
+            console.log("New appointment request:", payload.new)
 
-    return () => clearInterval(interval)
+            // Fetch mother details
+            const { data: mother } = await supabase
+              .from("mothers")
+              .select("full_name, email")
+              .eq("user_id", payload.new.mother_id)
+              .single()
+
+            const newNotification = {
+              id: `temp_${payload.new.id}`,
+              type: "appointment_request",
+              message: `New appointment request from ${mother?.full_name || "Unknown"}`,
+              data: { ...payload.new, mothers: mother },
+              read: false,
+              created_at: payload.new.created_at,
+              appointmentId: payload.new.id,
+            }
+
+            setNotifications((prev) => [newNotification, ...prev])
+            setUnreadCount((prev) => prev + 1)
+          },
+        )
+        .subscribe()
+
+      // Subscribe to appointments (status updates)
+      const appointmentSubscription = supabase
+        .channel(`appointments-${doctorId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "appointments",
+            filter: `doctor_id=eq.${doctorId}`,
+          },
+          async (payload) => {
+            console.log("Appointment created:", payload.new)
+
+            // Remove corresponding temporary appointment notification
+            setNotifications((prev) =>
+              prev.filter(
+                (notif) =>
+                  notif.type !== "appointment_request" ||
+                  !notif.data.mother_id ||
+                  notif.data.mother_id !== payload.new.mother_id,
+              ),
+            )
+            setUnreadCount((prev) => Math.max(0, prev - 1))
+          },
+        )
+        .subscribe()
+
+      return () => {
+        tempAppointmentSubscription.unsubscribe()
+        appointmentSubscription.unsubscribe()
+      }
+    }
   }, [doctorId])
 
-  const handleMarkAsRead = async (id) => {
-    try {
-      const result = await markNotificationAsRead(id)
+  const handleMarkAsRead = async (notificationId) => {
+    setNotifications((prev) =>
+      prev.map((notification) => (notification.id === notificationId ? { ...notification, read: true } : notification)),
+    )
 
-      if (result.success) {
-        setNotifications(
-          notifications.map((notification) =>
-            notification.id === id ? { ...notification, read: true } : notification,
-          ),
-        )
-        setUnreadCount((prev) => Math.max(0, prev - 1))
-      }
-    } catch (err) {
-      console.error("Error marking notification as read:", err)
+    if (notifications.find((n) => n.id === notificationId && !n.read)) {
+      setUnreadCount((prev) => Math.max(0, prev - 1))
     }
   }
 
   const handleMarkAllAsRead = async () => {
-    if (!doctorId) return
+    setNotifications((prev) => prev.map((notification) => ({ ...notification, read: true })))
+    setUnreadCount(0)
+  }
 
-    try {
-      const result = await markAllNotificationsAsRead(doctorId)
+  const handleDeleteNotification = async (notificationId) => {
+    const notification = notifications.find((n) => n.id === notificationId)
+    setNotifications((prev) => prev.filter((n) => n.id !== notificationId))
 
-      if (result.success) {
-        setNotifications(notifications.map((notification) => ({ ...notification, read: true })))
-        setUnreadCount(0)
-      }
-    } catch (err) {
-      console.error("Error marking all notifications as read:", err)
+    if (notification && !notification.read) {
+      setUnreadCount((prev) => Math.max(0, prev - 1))
     }
   }
 
@@ -131,6 +251,17 @@ const NotificationsPanel = () => {
 
     const days = Math.floor(hours / 24)
     return `${days} day${days > 1 ? "s" : ""} ago`
+  }
+
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case "appointment_request":
+        return <Clock className="h-4 w-4 text-blue-500" />
+      case "appointment_update":
+        return <Calendar className="h-4 w-4 text-green-500" />
+      default:
+        return <Bell className="h-4 w-4 text-gray-500" />
+    }
   }
 
   return (
@@ -172,31 +303,47 @@ const NotificationsPanel = () => {
                 {notifications.map((notification) => (
                   <div
                     key={notification.id}
-                    className={`p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors ${!notification.read ? "bg-pink-50" : ""}`}
-                    onClick={() => !notification.read && handleMarkAsRead(notification.id)}
+                    className={`p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors ${!notification.read ? "bg-blue-50" : ""}`}
                   >
-                    <div className="flex justify-between items-start">
-                      <p className={`text-sm ${!notification.read ? "font-medium" : ""}`}>{notification.message}</p>
-                      <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
-                        {getTimeAgo(notification.created_at)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">{formatTime(notification.created_at)}</p>
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 mt-1">{getNotificationIcon(notification.type)}</div>
 
-                    {!notification.read && (
-                      <div className="mt-2 flex justify-end">
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm ${!notification.read ? "font-medium text-gray-900" : "text-gray-700"}`}>
+                          {notification.message}
+                        </p>
+
+                        {notification.data?.requested_time && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Requested time: {new Date(notification.data.requested_time).toLocaleString()}
+                          </p>
+                        )}
+
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-xs text-gray-500">{getTimeAgo(notification.created_at)}</span>
+                          <span className="text-xs text-gray-500">{formatTime(notification.created_at)}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-1">
+                        {!notification.read && (
+                          <button
+                            onClick={() => handleMarkAsRead(notification.id)}
+                            className="text-xs text-blue-600 hover:text-blue-800 p-1"
+                            title="Mark as read"
+                          >
+                            <Check className="h-3 w-3" />
+                          </button>
+                        )}
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleMarkAsRead(notification.id)
-                          }}
-                          className="text-xs text-pink-600 hover:text-pink-800 flex items-center"
+                          onClick={() => handleDeleteNotification(notification.id)}
+                          className="text-xs text-gray-400 hover:text-red-600 p-1"
+                          title="Delete notification"
                         >
-                          <Check className="h-3 w-3 mr-1" />
-                          Mark as read
+                          <X className="h-3 w-3" />
                         </button>
                       </div>
-                    )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -204,7 +351,7 @@ const NotificationsPanel = () => {
               <div className="p-8 text-center text-gray-500">
                 <Bell className="h-8 w-8 mx-auto text-gray-300 mb-2" />
                 <p>No notifications</p>
-                <p className="text-xs mt-1">New notifications will appear here</p>
+                <p className="text-xs mt-1">New appointment requests will appear here</p>
               </div>
             )}
           </div>
@@ -221,4 +368,3 @@ const NotificationsPanel = () => {
 }
 
 export default NotificationsPanel
-

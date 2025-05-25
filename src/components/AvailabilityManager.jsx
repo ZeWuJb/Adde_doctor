@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { UserAuth } from "../context/AuthContext"
 import {
   getDoctorIdFromUserId,
@@ -355,7 +355,7 @@ const AvailabilityManager = () => {
   }
 
   // Flatten the availability data for display in the table
-  const getAvailabilitySlots = () => {
+  const getAvailabilitySlots = useCallback(() => {
     const slots = []
 
     // Ensure dates array exists and is an array before trying to iterate
@@ -379,20 +379,20 @@ const AvailabilityManager = () => {
       }
       return a.time.localeCompare(b.time)
     })
-  }
+  }, [availabilityData])
 
   // Get unique dates and times for filtering
   const uniqueDates = useMemo(() => {
     const slots = getAvailabilitySlots()
     const dates = [...new Set(slots.map((slot) => slot.date))]
     return dates.sort((a, b) => new Date(a) - new Date(b))
-  }, [availabilityData])
+  }, [availabilityData, getAvailabilitySlots])
 
   const uniqueTimes = useMemo(() => {
     const slots = getAvailabilitySlots()
     const times = [...new Set(slots.map((slot) => slot.time))]
     return times.sort()
-  }, [availabilityData])
+  }, [availabilityData, getAvailabilitySlots])
 
   // Toggle slot selection for multi-delete
   const toggleSlotSelection = (date, slot) => {

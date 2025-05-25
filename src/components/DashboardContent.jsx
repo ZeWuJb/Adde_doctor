@@ -1,7 +1,8 @@
 "use client"
 
 import PropTypes from "prop-types"
-import { Calendar, Clock, Video, Check, Users, Activity, FileText } from "lucide-react"
+import { Calendar, Clock, Video, Check, Users, Activity } from "lucide-react"
+import { getImageSrc } from "../services/imageService"
 
 const DashboardContent = ({ statistics, recentActivity, loading }) => {
   const formatDate = (dateString) => {
@@ -120,7 +121,12 @@ const DashboardContent = ({ statistics, recentActivity, loading }) => {
               <div className="flex items-center">
                 <div className="h-12 w-12 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
                   <img
-                    src={statistics.nextAppointment.mothers?.profile_url || "/placeholder.svg?height=48&width=48"}
+                    src={
+                      getImageSrc(
+                        statistics.nextAppointment.mothers?.profile_url,
+                        "/placeholder.svg?height=48&width=48",
+                      ) || "/placeholder.svg"
+                    }
                     alt="Patient"
                     className="h-full w-full object-cover"
                   />
@@ -180,7 +186,10 @@ const DashboardContent = ({ statistics, recentActivity, loading }) => {
                     <div className="flex items-start">
                       <div className="h-10 w-10 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
                         <img
-                          src={activity.mothers?.profile_url || "/placeholder.svg?height=40&width=40"}
+                          src={
+                            getImageSrc(activity.mothers?.profile_url, "/placeholder.svg?height=40&width=40") ||
+                            "/placeholder.svg"
+                          }
                           alt="Patient"
                           className="h-full w-full object-cover"
                         />
@@ -236,52 +245,6 @@ const DashboardContent = ({ statistics, recentActivity, loading }) => {
           </div>
         </div>
       </div>
-
-      {/* Quick Actions */}
-      <div>
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <button
-            onClick={() => (window.location.href = "/appointments")}
-            className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex items-center"
-          >
-            <div className="p-3 rounded-full bg-pink-100 text-pink-600 mr-3">
-              <Calendar className="h-5 w-5" />
-            </div>
-            <span className="font-medium">Manage Appointments</span>
-          </button>
-
-          <button
-            onClick={() => (window.location.href = "/availability")}
-            className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex items-center"
-          >
-            <div className="p-3 rounded-full bg-purple-100 text-purple-600 mr-3">
-              <Clock className="h-5 w-5" />
-            </div>
-            <span className="font-medium">Set Availability</span>
-          </button>
-
-          <button
-            onClick={() => (window.location.href = "/patients")}
-            className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex items-center"
-          >
-            <div className="p-3 rounded-full bg-blue-100 text-blue-600 mr-3">
-              <Users className="h-5 w-5" />
-            </div>
-            <span className="font-medium">View Patients</span>
-          </button>
-
-          <button
-            onClick={() => (window.location.href = "/reports")}
-            className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex items-center"
-          >
-            <div className="p-3 rounded-full bg-green-100 text-green-600 mr-3">
-              <FileText className="h-5 w-5" />
-            </div>
-            <span className="font-medium">Generate Reports</span>
-          </button>
-        </div>
-      </div>
     </div>
   )
 }
@@ -310,4 +273,3 @@ DashboardContent.propTypes = {
 }
 
 export default DashboardContent
-
