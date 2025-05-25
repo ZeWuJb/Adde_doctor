@@ -1,10 +1,41 @@
 "use client"
 
+import PropTypes from "prop-types"
 import { useState, useEffect } from "react"
 import { UserAuth } from "../context/AuthContext"
 import { getDoctorIdFromUserId } from "../services/appointmentService"
 import { fetchDoctorStatistics, fetchRecentActivity } from "../services/dashboardService"
-import { BarChart, Calendar, Clock, Users, Activity, CheckCircle, AlertCircle } from "lucide-react"
+import { BarChart, Calendar, Clock, Users, Activity, CheckCircle, AlertCircle, User } from "lucide-react"
+import { getImageSrc } from "../services/imageService"
+
+// Enhanced image component for mothers
+const MotherAvatar = ({ mother, size = "h-12 w-12" }) => {
+  const [imageError, setImageError] = useState(false)
+
+  if (!mother?.profile_url || imageError) {
+    return (
+      <div className={`${size} rounded-full flex items-center justify-center bg-gray-200`}>
+        <User className="h-6 w-6 text-gray-500" />
+      </div>
+    )
+  }
+
+  return (
+    <img
+      className={`${size} rounded-full object-cover`}
+      src={getImageSrc(mother.profile_url) || "/placeholder.svg"}
+      alt={mother.full_name || "Patient"}
+      onError={() => setImageError(true)}
+    />
+  )
+}
+MotherAvatar.propTypes = {
+    mother: PropTypes.shape({
+      profile_url: PropTypes.string,
+      full_name: PropTypes.string,
+    }),
+    size: PropTypes.string,
+  }
 
 const StatisticsPage = () => {
   const { session } = UserAuth()
@@ -260,13 +291,7 @@ const StatisticsPage = () => {
             {statistics.nextAppointment ? (
               <div>
                 <div className="flex items-center mb-4">
-                  <div className="h-12 w-12 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
-                    <img
-                      src={statistics.nextAppointment?.mothers?.profile_url || "/placeholder.svg?height=48&width=48"}
-                      alt="Patient"
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
+                  <MotherAvatar mother={statistics.nextAppointment?.mothers} />
                   <div className="ml-4">
                     <p className="font-medium text-gray-900">
                       {statistics.nextAppointment?.mothers?.full_name || "Unknown Patient"}
@@ -314,13 +339,7 @@ const StatisticsPage = () => {
                   {recentActivity.map((activity) => (
                     <div key={activity.id} className="p-4 hover:bg-gray-50">
                       <div className="flex items-start">
-                        <div className="h-10 w-10 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
-                          <img
-                            src={activity?.mothers?.profile_url || "/placeholder.svg?height=40&width=40"}
-                            alt="Patient"
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
+                        <MotherAvatar mother={activity?.mothers} size="h-10 w-10" />
                         <div className="ml-4 flex-1">
                           <div className="flex justify-between">
                             <p className="font-medium text-gray-900">
@@ -380,4 +399,3 @@ const StatisticsPage = () => {
 }
 
 export default StatisticsPage
-

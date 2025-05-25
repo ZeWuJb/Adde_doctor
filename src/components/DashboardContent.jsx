@@ -1,10 +1,44 @@
 "use client"
 
 import PropTypes from "prop-types"
-import { Calendar, Clock, Video, Check, Users, Activity } from "lucide-react"
+import { Calendar, Clock, Video, Check, Users, Activity, User } from "lucide-react"
 import { getImageSrc } from "../services/imageService"
+import { useState } from "react"
+
+// Enhanced image component for mothers
+const MotherAvatar = ({ mother, size = "h-12 w-12" }) => {
+  const [imageError, setImageError] = useState(false)
+
+  if (!mother?.profile_url || imageError) {
+    return (
+      <div className={`${size} rounded-full flex items-center justify-center bg-gray-200`}>
+        <User className="h-6 w-6 text-gray-500" />
+      </div>
+    )
+  }
+
+  return (
+    <img
+      className={`${size} rounded-full object-cover`}
+      src={getImageSrc(mother.profile_url) || "/placeholder.svg"}
+      alt={mother.full_name || "Patient"}
+      onError={() => setImageError(true)}
+    />
+  )
+}
+MotherAvatar.propTypes = {
+  mother: PropTypes.shape({
+    profile_url: PropTypes.string,
+    full_name: PropTypes.string,
+  }),
+  size: PropTypes.string,
+}
 
 const DashboardContent = ({ statistics, recentActivity, loading }) => {
+  // Add this at the top of the component function, after the prop destructuring
+  console.log("Dashboard statistics:", statistics)
+  console.log("Next appointment:", statistics?.nextAppointment)
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       month: "short",
@@ -119,21 +153,12 @@ const DashboardContent = ({ statistics, recentActivity, loading }) => {
           {statistics?.nextAppointment ? (
             <div className="space-y-4">
               <div className="flex items-center">
-                <div className="h-12 w-12 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
-                  <img
-                    src={
-                      getImageSrc(
-                        statistics.nextAppointment.mothers?.profile_url,
-                        "/placeholder.svg?height=48&width=48",
-                      ) || "/placeholder.svg"
-                    }
-                    alt="Patient"
-                    className="h-full w-full object-cover"
-                  />
-                </div>
+                <MotherAvatar mother={statistics.nextAppointment.mothers || statistics.nextAppointment.mother} />
                 <div className="ml-4">
                   <p className="font-medium text-gray-900">
-                    {statistics.nextAppointment.mothers?.full_name || "Patient"}
+                    {statistics.nextAppointment.mothers?.full_name ||
+                      statistics.nextAppointment.mother?.full_name ||
+                      "Patient"}
                   </p>
                   <p className="text-sm text-gray-500">
                     {formatDate(statistics.nextAppointment.requested_time)} at{" "}
@@ -154,13 +179,15 @@ const DashboardContent = ({ statistics, recentActivity, loading }) => {
                   </span>
                 </div>
 
-                <button
-                  className="px-3 py-1.5 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700 transition-colors flex items-center"
-                  onClick={() => window.open(statistics.nextAppointment.video_conference_link, "_blank")}
-                >
-                  <Video className="h-4 w-4 mr-1.5" />
-                  Join Call
-                </button>
+                {statistics.nextAppointment.video_conference_link && (
+                  <button
+                    className="px-3 py-1.5 bg-pink-600 text-white rounded-lg text-sm hover:bg-pink-700 transition-colors flex items-center"
+                    onClick={() => window.open(statistics.nextAppointment.video_conference_link, "_blank")}
+                  >
+                    <Video className="h-4 w-4 mr-1.5" />
+                    Join Call
+                  </button>
+                )}
               </div>
             </div>
           ) : (
@@ -184,16 +211,7 @@ const DashboardContent = ({ statistics, recentActivity, loading }) => {
                 {recentActivity.map((activity) => (
                   <div key={activity.id} className="p-4 hover:bg-gray-50 transition-colors">
                     <div className="flex items-start">
-                      <div className="h-10 w-10 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
-                        <img
-                          src={
-                            getImageSrc(activity.mothers?.profile_url, "/placeholder.svg?height=40&width=40") ||
-                            "/placeholder.svg"
-                          }
-                          alt="Patient"
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
+                      <MotherAvatar mother={activity.mothers} size="h-10 w-10" />
                       <div className="ml-4 flex-1">
                         <div className="flex justify-between">
                           <p className="font-medium text-gray-900">{activity.mothers?.full_name || "Patient"}</p>

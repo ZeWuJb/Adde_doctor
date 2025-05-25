@@ -52,6 +52,31 @@ export const fetchDoctorStatistics = async (doctorId) => {
     // Get unique patient count
     const uniquePatientCount = new Set(uniquePatients.map((p) => p.mother_id)).size
 
+    // Get next appointment with mother data
+    let nextAppointmentWithMother = null
+    if (upcomingAppointments.length > 0) {
+      const { data: nextAppointmentData, error: nextAppointmentError } = await supabase
+        .from("appointments")
+        .select(`
+          id, 
+          requested_time, 
+          status, 
+          payment_status,
+          video_conference_link,
+          mothers:mother_id (
+            user_id , 
+            full_name, 
+            profile_url
+          )
+        `)
+        .eq("id", upcomingAppointments[0].id)
+        .single()
+
+      if (!nextAppointmentError && nextAppointmentData) {
+        nextAppointmentWithMother = nextAppointmentData
+      }
+    }
+
     return {
       success: true,
       data: {
@@ -62,7 +87,7 @@ export const fetchDoctorStatistics = async (doctorId) => {
         completedSessions: completedSessions.length,
         uniquePatients: uniquePatientCount,
         upcomingAppointments: upcomingAppointments,
-        nextAppointment: upcomingAppointments.length > 0 ? upcomingAppointments[0] : null,
+        nextAppointment: nextAppointmentWithMother,
       },
     }
   } catch (error) {
@@ -129,4 +154,3 @@ export const fetchRecentActivity = async (doctorId, limit = 5) => {
     return { success: false, error }
   }
 }
-

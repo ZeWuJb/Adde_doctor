@@ -386,13 +386,13 @@ const AvailabilityManager = () => {
     const slots = getAvailabilitySlots()
     const dates = [...new Set(slots.map((slot) => slot.date))]
     return dates.sort((a, b) => new Date(a) - new Date(b))
-  }, [availabilityData, getAvailabilitySlots])
+  }, [getAvailabilitySlots])
 
   const uniqueTimes = useMemo(() => {
     const slots = getAvailabilitySlots()
     const times = [...new Set(slots.map((slot) => slot.time))]
     return times.sort()
-  }, [availabilityData, getAvailabilitySlots])
+  }, [getAvailabilitySlots])
 
   // Toggle slot selection for multi-delete
   const toggleSlotSelection = (date, slot) => {
