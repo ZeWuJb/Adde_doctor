@@ -3,14 +3,13 @@
 import { useState, useEffect } from "react"
 import { UserAuth } from "../context/AuthContext"
 import { getDoctorIdFromUserId } from "../services/appointmentService"
-import { fetchAppointmentStats, fetchPatientStats } from "../services/reportService"
-import { BarChart, Calendar, Users, Download, AlertCircle, ChevronDown, FileText } from "lucide-react"
+import { fetchAppointmentStats } from "../services/reportService"
+import { BarChart, Calendar, Download, AlertCircle, ChevronDown, FileText } from "lucide-react"
 
 const ReportsPage = () => {
   const { session } = UserAuth()
   const [doctorId, setDoctorId] = useState(null)
   const [appointmentStats, setAppointmentStats] = useState(null)
-  const [patientStats, setPatientStats] = useState(null)
   const [selectedPeriod, setSelectedPeriod] = useState("month")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -52,14 +51,6 @@ const ReportsPage = () => {
           setAppointmentStats(appointmentResult.data)
         } else {
           setError("Failed to load appointment statistics")
-        }
-
-        // Fetch patient statistics
-        const patientResult = await fetchPatientStats(doctorId)
-        if (patientResult.success) {
-          setPatientStats(patientResult.data)
-        } else {
-          setError("Failed to load patient statistics")
         }
       } catch (err) {
         console.error("Error loading statistics:", err)
@@ -224,44 +215,6 @@ const ReportsPage = () => {
             )}
           </div>
 
-          {/* Patient Statistics */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <Users className="h-5 w-5 mr-2 text-primary-500" />
-              Patient Statistics
-            </h2>
-            {patientStats && (
-              <div className="space-y-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Total Patients</span>
-                  <span className="font-medium">{patientStats.totalPatients}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Active Patients</span>
-                  <span className="font-medium">{patientStats.activePatients}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">New Patients (30 days)</span>
-                  <span className="font-medium">{patientStats.newPatients}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Returning Patients</span>
-                  <span className="font-medium">{patientStats.returningPatients}</span>
-                </div>
-                <div className="pt-4 mt-4 border-t border-gray-200">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Patient Retention Rate</span>
-                    <span className="font-medium">
-                      {patientStats.totalPatients > 0
-                        ? Math.round((patientStats.activePatients / patientStats.totalPatients) * 100)
-                        : 0}
-                      %
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* Appointment Distribution */}
           <div className="lg:col-span-3 bg-white rounded-lg shadow-sm p-6">
@@ -344,22 +297,6 @@ const ReportsPage = () => {
                       >
                         Download CSV
                       </button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">Patient Statistics</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">All time</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-500">
-                        Overview of patient demographics and engagement metrics
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button className="text-primary-600 hover:text-primary-900">Download CSV</button>
                     </td>
                   </tr>
                   <tr>

@@ -45,50 +45,6 @@ export const fetchAppointmentStats = async (doctorId, period = "month") => {
   }
 }
 
-// Fetch patient statistics for a doctor
-export const fetchPatientStats = async (doctorId) => {
-  try {
-    // Fetch all patients
-    const { data: patients, error: patientsError } = await supabase
-      .from("mothers")
-      .select(`
-        id,
-        created_at
-      `)
-      .eq("doctor_id", doctorId)
-
-    if (patientsError) throw patientsError
-
-    // Fetch all appointments for the doctor
-    const { data: appointments, error: appointmentsError } = await supabase
-      .from("appointments")
-      .select(`
-        id,
-        requested_time,
-        status,
-        mother_id
-      `)
-      .eq("doctor_id", doctorId)
-
-    if (appointmentsError) throw appointmentsError
-
-    // Unique patients who have had an appointment
-    const uniquePatientIds = new Set(appointments.map((a) => a.mother_id))
-
-    const stats = {
-      totalPatients: patients.length,
-      activePatients: uniquePatientIds.size,
-      newPatients: patients.filter((p) => new Date(p.created_at) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
-        .length, // Patients added in the last 30 days
-      returningPatients: appointments.filter((a) => a.status === "accepted").length,
-    }
-
-    return { success: true, data: stats }
-  } catch (error) {
-    console.error("Error fetching patient statistics:", error.message)
-    return { success: false, error }
-  }
-}
 
 // Helper function to calculate the date range
 const getDateRange = (period) => {
