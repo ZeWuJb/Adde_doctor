@@ -363,6 +363,44 @@ export const AdminContextProvider = ({ children }) => {
     }
   }
 
+  const addDoctorWithAuth = async (doctorData) => {
+    try {
+      // Step 1: Create Supabase auth user
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: doctorData.email.toLowerCase(),
+        password: doctorData.password,
+        email_confirm: true, // Auto-confirm email
+      })
+
+      if (authError) throw authError
+      if (!authData.user) throw new Error("Failed to create auth user")
+
+      // Step 2: Create doctor record with user_id
+      const doctorRecord = {
+        full_name: doctorData.full_name,
+        email: doctorData.email.toLowerCase(),
+        speciality: doctorData.speciality,
+        description: doctorData.description,
+        payment_required_amount: doctorData.payment_required_amount,
+        type: doctorData.type,
+        user_id: authData.user.id,
+      }
+
+      const { data: doctorDbData, error: doctorError } = await supabase.from("doctors").insert(doctorRecord).select()
+
+      if (doctorError) {
+        // If doctor creation fails, we should clean up the auth user
+        await supabase.auth.admin.deleteUser(authData.user.id)
+        throw doctorError
+      }
+
+      return { success: true, data: doctorDbData[0] }
+    } catch (err) {
+      console.error("Error adding doctor with auth:", err.message)
+      return { success: false, error: err.message }
+    }
+  }
+
   const updateDoctor = async (id, doctorData) => {
     try {
       const { data, error } = await supabase.from("doctors").update(doctorData).eq("id", id).select()
@@ -485,6 +523,7 @@ export const AdminContextProvider = ({ children }) => {
     systemStatus,
     refreshData,
     addDoctor,
+    addDoctorWithAuth,
     updateDoctor,
     deleteDoctor,
     addArticle,

@@ -1,5 +1,8 @@
+"use client"
+
 import { createBrowserRouter } from "react-router-dom"
 import { lazy, Suspense } from "react"
+import PropTypes from "prop-types"
 import App from "./App"
 import Signup from "./components/Signup"
 import Signin from "./components/Signin"
@@ -8,7 +11,43 @@ import PrivateRoute from "./components/PrivateRoute"
 import AdminLoading from "./components/AdminLoading"
 import AdminProfilePage from "./admin/pages/AdminProfilePage"
 
-// Lazy load admin components
+// Error Boundary Component with PropTypes
+const ErrorFallback = ({ error, resetErrorBoundary }) => (
+  <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="max-w-md w-full bg-white rounded-lg shadow-md p-6 text-center">
+      <h1 className="text-2xl font-bold text-red-600 mb-4">Something went wrong</h1>
+      <p className="text-gray-600 mb-6">{error?.message || "An unexpected error occurred"}</p>
+      <div className="space-y-3">
+        <button
+          onClick={resetErrorBoundary}
+          className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+        >
+          Try again
+        </button>
+        <button
+          onClick={() => (window.location.href = "/")}
+          className="w-full px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+        >
+          Go to Home
+        </button>
+      </div>
+    </div>
+  </div>
+)
+
+ErrorFallback.propTypes = {
+  error: PropTypes.shape({
+    message: PropTypes.string,
+  }),
+  resetErrorBoundary: PropTypes.func,
+}
+
+ErrorFallback.defaultProps = {
+  error: null,
+  resetErrorBoundary: () => window.location.reload(),
+}
+
+// Lazy load admin components - simplified without error catching to see the real error
 const AdminDashboard = lazy(() => import("./admin/AdminDashboard"))
 const DoctorsPage = lazy(() => import("./admin/pages/DoctorsPage"))
 const AppointmentsPage = lazy(() => import("./admin/pages/AppointmentsPage"))
@@ -20,22 +59,67 @@ const SystemMonitoringPage = lazy(() => import("./admin/pages/SystemMonitoringPa
 const UserRolesPage = lazy(() => import("./admin/pages/UserRolesPage"))
 
 const router = createBrowserRouter([
-  { path: "/", element: <App /> },
-  { path: "/signup", element: <Signup /> },
-  { path: "/signin", element: <Signin /> },
+  {
+    path: "/",
+    element: <App />,
+    errorElement: <ErrorFallback />,
+  },
+  {
+    path: "/signup",
+    element: <Signup />,
+    errorElement: <ErrorFallback />,
+  },
+  {
+    path: "/signin",
+    element: <Signin />,
+    errorElement: <ErrorFallback />,
+  },
   {
     path: "/",
     element: <PrivateRoute />,
+    errorElement: <ErrorFallback />,
     children: [
       // Doctor routes
-      { path: "dashboard", element: <Dashboard /> },
-      { path: "profile", element: <Dashboard /> },
-      { path: "appointments", element: <Dashboard /> },
-      { path: "availability", element: <Dashboard /> },
-      { path: "statistics", element: <Dashboard /> },
-      { path: "reports", element: <Dashboard /> },
-      { path: "settings", element: <Dashboard /> },
-      { path: "help", element: <Dashboard /> },
+      {
+        path: "dashboard",
+        element: <Dashboard />,
+        errorElement: <ErrorFallback />,
+      },
+      {
+        path: "profile",
+        element: <Dashboard />,
+        errorElement: <ErrorFallback />,
+      },
+      {
+        path: "appointments",
+        element: <Dashboard />,
+        errorElement: <ErrorFallback />,
+      },
+      {
+        path: "availability",
+        element: <Dashboard />,
+        errorElement: <ErrorFallback />,
+      },
+      {
+        path: "statistics",
+        element: <Dashboard />,
+        errorElement: <ErrorFallback />,
+      },
+      {
+        path: "reports",
+        element: <Dashboard />,
+        errorElement: <ErrorFallback />,
+      },
+      {
+        path: "settings",
+        element: <Dashboard />,
+        errorElement: <ErrorFallback />,
+      },
+      {
+        path: "help",
+        element: <Dashboard />,
+        errorElement: <ErrorFallback />,
+      },
 
       // Admin routes - wrapped with Suspense for lazy loading
       {
@@ -45,6 +129,7 @@ const router = createBrowserRouter([
             <AdminDashboard />
           </Suspense>
         ),
+        errorElement: <ErrorFallback />,
       },
       {
         path: "admin/doctors",
@@ -53,6 +138,7 @@ const router = createBrowserRouter([
             <DoctorsPage />
           </Suspense>
         ),
+        errorElement: <ErrorFallback />,
       },
       {
         path: "admin/appointments",
@@ -61,6 +147,7 @@ const router = createBrowserRouter([
             <AppointmentsPage />
           </Suspense>
         ),
+        errorElement: <ErrorFallback />,
       },
       {
         path: "admin/analytics",
@@ -69,6 +156,7 @@ const router = createBrowserRouter([
             <AnalyticsPage />
           </Suspense>
         ),
+        errorElement: <ErrorFallback />,
       },
       {
         path: "admin/settings",
@@ -77,6 +165,7 @@ const router = createBrowserRouter([
             <SettingsPage />
           </Suspense>
         ),
+        errorElement: <ErrorFallback />,
       },
       {
         path: "admin/content",
@@ -85,6 +174,7 @@ const router = createBrowserRouter([
             <ContentManagementPage />
           </Suspense>
         ),
+        errorElement: <ErrorFallback />,
       },
       {
         path: "admin/patients",
@@ -93,6 +183,7 @@ const router = createBrowserRouter([
             <PatientsPage />
           </Suspense>
         ),
+        errorElement: <ErrorFallback />,
       },
       {
         path: "admin/system",
@@ -101,6 +192,7 @@ const router = createBrowserRouter([
             <SystemMonitoringPage />
           </Suspense>
         ),
+        errorElement: <ErrorFallback />,
       },
       {
         path: "admin/user-roles",
@@ -109,10 +201,12 @@ const router = createBrowserRouter([
             <UserRolesPage />
           </Suspense>
         ),
+        errorElement: <ErrorFallback />,
       },
       {
         path: "admin/profile",
         element: <AdminProfilePage />,
+        errorElement: <ErrorFallback />,
       },
     ],
   },

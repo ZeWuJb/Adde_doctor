@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import PropTypes from "prop-types"
 import { X, Camera, AlertCircle, Check } from "lucide-react"
 import { supabase } from "../../supabaseClient"
+import { supabaseAdmin } from "../../supabaseAdmin"
 import { uploadImageAsBase64, validateImage } from "../../services/imageService"
 
 const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
@@ -15,6 +16,7 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
     payment_required_amount: 0.0,
     type: "doctor",
     profile_url: "",
+    password: "", // Add password field for new doctors
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -31,6 +33,7 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
         payment_required_amount: doctor.payment_required_amount || 0.0,
         type: doctor.type || "doctor",
         profile_url: doctor.profile_url || "",
+        password: "", // Don't show existing password
       })
     } else {
       setFormData({
@@ -41,6 +44,7 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
         payment_required_amount: 0.0,
         type: "doctor",
         profile_url: "",
+        password: "",
       })
     }
   }, [doctor, isOpen])
@@ -81,6 +85,79 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
     }
   }
 
+  const addDoctorWithAuth = async (doctorData) => {
+    try {
+      // Step 1: Create Supabase auth user using admin client
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: doctorData.email.toLowerCase(),
+        password: doctorData.password,
+        email_confirm: true, // Auto-confirm email
+        user_metadata: {
+          full_name: doctorData.full_name,
+          role: "doctor",
+        },
+      })
+
+      if (authError) throw authError
+      if (!authData.user) throw new Error("Failed to create auth user")
+
+      // Step 2: Create doctor record with user_id using admin client
+      const doctorRecord = {
+        full_name: doctorData.full_name,
+        email: doctorData.email.toLowerCase(),
+        speciality: doctorData.speciality,
+        description: doctorData.description,
+        payment_required_amount: Number.parseFloat(doctorData.payment_required_amount.toFixed(2)),
+        type: doctorData.type,
+        profile_url: doctorData.profile_url,
+        user_id: authData.user.id,
+      }
+
+      const { data: doctorDbData, error: doctorError } = await supabaseAdmin
+        .from("doctors")
+        .insert(doctorRecord)
+        .select()
+
+      if (doctorError) {
+        // If doctor creation fails, clean up the auth user
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+        throw doctorError
+      }
+
+      return { success: true, data: doctorDbData[0] }
+    } catch (err) {
+      console.error("Error adding doctor with auth:", err.message)
+      return { success: false, error: err.message }
+    }
+  }
+
+  const updateDoctor = async (id, doctorData) => {
+    try {
+      const updateData = {
+        full_name: doctorData.full_name,
+        email: doctorData.email,
+        speciality: doctorData.speciality,
+        description: doctorData.description,
+        payment_required_amount: Number.parseFloat(doctorData.payment_required_amount.toFixed(2)),
+        type: doctorData.type,
+        profile_url: doctorData.profile_url,
+      }
+
+      const { data, error } = await supabase.from("doctors").update(updateData).eq("id", id).select().single()
+
+      if (error) {
+        if (error.code === "23505") {
+          throw new Error("This email is already in use by another doctor.")
+        }
+        throw error
+      }
+      return { success: true, data }
+    } catch (err) {
+      console.error("Error updating doctor:", err.message)
+      return { success: false, error: err.message }
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -97,50 +174,42 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
         throw new Error("Please enter a valid email address")
       }
 
+      // Password validation for new doctors
+      if (!doctor && !formData.password) {
+        throw new Error("Please provide a default password for the new doctor")
+      }
+
+      if (!doctor && formData.password.length < 6) {
+        throw new Error("Password must be at least 6 characters long")
+      }
+
       // Validate payment_required_amount
       if (formData.payment_required_amount < 0 || formData.payment_required_amount > 99999999.99) {
         throw new Error("Payment amount must be between 0.00 and 99999999.99")
       }
 
-      const doctorData = {
-        full_name: formData.full_name,
-        email: formData.email,
-        speciality: formData.speciality,
-        description: formData.description,
-        payment_required_amount: Number.parseFloat(formData.payment_required_amount.toFixed(2)),
-        type: formData.type,
-        profile_url: formData.profile_url,
-      }
-
       let result
       if (doctor) {
-        const { data, error } = await supabase.from("doctors").update(doctorData).eq("id", doctor.id).select().single()
-
-        if (error) {
-          if (error.code === "23505") {
-            throw new Error("This email is already in use by another doctor.")
-          }
-          throw error
-        }
-        result = { success: true, data }
+        // Existing doctor update logic
+        result = await updateDoctor(doctor.id, formData)
       } else {
-        doctorData.created_at = new Date().toISOString()
-        const { data, error } = await supabase.from("doctors").insert(doctorData).select().single()
-
-        if (error) {
-          if (error.code === "23505") {
-            throw new Error("This email is already in use by another doctor.")
-          }
-          throw error
-        }
-        result = { success: true, data }
+        // New doctor creation with auth
+        result = await addDoctorWithAuth(formData)
       }
 
-      setSuccess(doctor ? "Doctor updated successfully" : "Doctor added successfully")
-      onSave(result)
-      setTimeout(() => {
-        onClose()
-      }, 1500)
+      if (result.success) {
+        setSuccess(
+          doctor
+            ? "Doctor updated successfully"
+            : "Doctor added successfully! They can now sign in with their email and password.",
+        )
+        onSave(result)
+        setTimeout(() => {
+          onClose()
+        }, 2000)
+      } else {
+        setError(result.error || "Failed to save doctor")
+      }
     } catch (err) {
       console.error("Error saving doctor:", err.message)
       setError(err.message)
@@ -246,7 +315,26 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
                     aria-required="true"
                   />
                 </div>
-                <div>
+                {!doctor && (
+                  <div>
+                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                      Default Password <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      id="password"
+                      name="password"
+                      value={formData.password}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
+                      required
+                      aria-required="true"
+                      minLength="6"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Doctor can sign in immediately with this password</p>
+                  </div>
+                )}
+                <div className={!doctor ? "col-span-1" : "col-span-2"}>
                   <label htmlFor="speciality" className="block text-sm font-medium text-gray-700 mb-1">
                     Specialty <span className="text-red-500">*</span>
                   </label>
@@ -278,19 +366,6 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
                     <option value="nurse">Nurse</option>
                   </select>
                 </div>
-                <div className="col-span-2">
-                  <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    id="description"
-                    name="description"
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
-                    rows="4"
-                  />
-                </div>
                 <div>
                   <label htmlFor="payment_required_amount" className="block text-sm font-medium text-gray-700 mb-1">
                     Payment Required ($)
@@ -305,6 +380,19 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
                     step="0.01"
                     max="99999999.99"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    id="description"
+                    name="description"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
+                    rows="4"
                   />
                 </div>
               </div>

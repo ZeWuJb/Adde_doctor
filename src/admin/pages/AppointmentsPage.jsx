@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { UserAuth } from "../../context/AuthContext"
 import { Search, Filter, Calendar, AlertCircle, ChevronDown, User } from "lucide-react"
 import AdminSidebar from "../components/AdminSidebar"
@@ -20,7 +20,9 @@ const AppointmentsPage = () => {
   const location = useLocation()
 
   // Update filteredAppointments when appointments, searchTerm, statusFilter, or dateFilter changes
-  useState(() => {
+  useEffect(() => {
+    console.log("Filtering appointments. Total appointments:", appointments.length)
+
     if (!appointments.length) {
       setFilteredAppointments([])
       return
@@ -34,7 +36,7 @@ const AppointmentsPage = () => {
       const matchesStatus = statusFilter === "all" ? true : appt.status === statusFilter
       const today = new Date()
       today.setHours(0, 0, 0, 0)
-      const appointmentDate = new Date(appt.date)
+      const appointmentDate = new Date(appt.requested_time)
 
       let matchesDate = true
       switch (dateFilter) {
@@ -67,6 +69,7 @@ const AppointmentsPage = () => {
       return matchesSearch && matchesStatus && matchesDate
     })
 
+    console.log("Filtered appointments:", filtered.length)
     setFilteredAppointments(filtered)
   }, [appointments, searchTerm, statusFilter, dateFilter])
 
@@ -201,9 +204,10 @@ const AppointmentsPage = () => {
                   >
                     <option value="all">All</option>
                     <option value="pending">Pending</option>
-                    <option value="upcoming">Upcoming</option>
+                    <option value="accepted">Accepted</option>
                     <option value="completed">Completed</option>
                     <option value="cancelled">Cancelled</option>
+                    <option value="declined">Declined</option>
                   </select>
                 </div>
                 <div>
@@ -236,7 +240,11 @@ const AppointmentsPage = () => {
                             {appointment.patientAvatar ? (
                               <img
                                 className="h-10 w-10 rounded-full object-cover"
-                                src={appointment.patientAvatar || "/placeholder.svg"}
+                                src={
+                                  appointment.patientAvatar.startsWith("data:")
+                                    ? appointment.patientAvatar
+                                    : `data:image/jpeg;base64,${appointment.patientAvatar}`
+                                }
                                 alt={appointment.patientName}
                                 onError={handleImageError}
                               />
@@ -249,7 +257,7 @@ const AppointmentsPage = () => {
                           <div className="ml-4">
                             <div className="text-sm font-medium text-gray-900">{appointment.patientName}</div>
                             <div className="text-sm text-gray-500">
-                              {formatDate(appointment.date)} at {formatTime(appointment.date)}
+                              {formatDate(appointment.requested_time)} at {formatTime(appointment.requested_time)}
                             </div>
                           </div>
                         </div>
@@ -258,9 +266,9 @@ const AppointmentsPage = () => {
                             className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                               appointment.status === "completed"
                                 ? "bg-green-100 text-green-800"
-                                : appointment.status === "upcoming"
+                                : appointment.status === "accepted"
                                   ? "bg-blue-100 text-blue-800"
-                                  : appointment.status === "cancelled"
+                                  : appointment.status === "cancelled" || appointment.status === "declined"
                                     ? "bg-red-100 text-red-800"
                                     : "bg-yellow-100 text-yellow-800"
                             }`}
@@ -276,7 +284,11 @@ const AppointmentsPage = () => {
                               {appointment.doctorAvatar ? (
                                 <img
                                   className="h-8 w-8 rounded-full object-cover"
-                                  src={appointment.doctorAvatar || "/placeholder.svg"}
+                                  src={
+                                    appointment.doctorAvatar.startsWith("data:")
+                                      ? appointment.doctorAvatar
+                                      : `data:image/jpeg;base64,${appointment.doctorAvatar}`
+                                  }
                                   alt={appointment.doctorName}
                                   onError={handleImageError}
                                 />
@@ -295,7 +307,7 @@ const AppointmentsPage = () => {
                         <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
                           <Calendar className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
                           <p>
-                            {formatDate(appointment.date)} at {formatTime(appointment.date)}
+                            {formatDate(appointment.requested_time)} at {formatTime(appointment.requested_time)}
                           </p>
                         </div>
                       </div>
@@ -303,7 +315,11 @@ const AppointmentsPage = () => {
                   </li>
                 ))
               ) : (
-                <li className="px-4 py-8 text-center text-gray-500">No appointments found matching your criteria.</li>
+                <li className="px-4 py-8 text-center text-gray-500">
+                  {appointments.length === 0
+                    ? "No appointments found in the system."
+                    : "No appointments found matching your criteria."}
+                </li>
               )}
             </ul>
           </div>
