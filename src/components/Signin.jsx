@@ -272,11 +272,11 @@ const Signin = () => {
 
             <div className="grid grid-cols-3 gap-4 pt-8">
               <div className="text-center p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-pink-100">
-                <div className="text-2xl font-bold text-pink-600">500+</div>
+                <div className="text-2xl font-bold text-pink-600">Countless</div>
                 <div className="text-sm text-gray-600">Happy Mothers</div>
               </div>
               <div className="text-center p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-purple-100">
-                <div className="text-2xl font-bold text-purple-600">50+</div>
+                <div className="text-2xl font-bold text-purple-600">Numerus</div>
                 <div className="text-sm text-gray-600">Expert Doctors</div>
               </div>
               <div className="text-center p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-indigo-100">
