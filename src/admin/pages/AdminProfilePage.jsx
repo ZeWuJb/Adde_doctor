@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from "react"
 import { UserAuth } from "../../context/AuthContext"
-import { Camera, Check, AlertCircle, Save } from "lucide-react"
+import { Camera, Check, AlertCircle, Save, User, Mail } from "lucide-react"
 import AdminSidebar from "../components/AdminSidebar"
 import AdminHeader from "../components/AdminHeader"
 import { supabase } from "../../supabaseClient"
 import { useLocation } from "react-router-dom"
+import FormInput from "../../components/ui/FormInput"
+import { emailValidation, nameValidation } from "../../utils/validation"
 
 const AdminProfilePage = () => {
   const { session, userData, signOut } = UserAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(true)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -24,31 +26,6 @@ const AdminProfilePage = () => {
   })
   const [uploadingImage, setUploadingImage] = useState(false)
   const location = useLocation()
-
-  // Check if sidebar is collapsed
-  useEffect(() => {
-    const checkSidebarState = () => {
-      const sidebar = document.querySelector("[data-sidebar]")
-      if (sidebar) {
-        const rect = sidebar.getBoundingClientRect()
-        setIsCollapsed(rect.width <= 64)
-      }
-    }
-
-    checkSidebarState()
-    window.addEventListener("resize", checkSidebarState)
-
-    const observer = new MutationObserver(checkSidebarState)
-    const sidebar = document.querySelector("[data-sidebar]")
-    if (sidebar) {
-      observer.observe(sidebar, { attributes: true, attributeFilter: ["class", "style"] })
-    }
-
-    return () => {
-      window.removeEventListener("resize", checkSidebarState)
-      observer.disconnect()
-    }
-  }, [])
 
   useEffect(() => {
     const fetchAdminProfile = async () => {
@@ -173,11 +150,19 @@ const AdminProfilePage = () => {
           userData={userData}
           handleSignOut={signOut}
           currentPath={location?.pathname || "/admin/profile"}
+          isCollapsed={isCollapsed}
+          setIsCollapsed={setIsCollapsed}
         />
         <div
           className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${isCollapsed ? "lg:ml-16" : "lg:ml-64"}`}
         >
-          <AdminHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} session={session} />
+          <AdminHeader
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            session={session}
+            isCollapsed={isCollapsed}
+            setIsCollapsed={setIsCollapsed}
+          />
           <main className="flex-1 overflow-y-auto p-4 sm:p-6">
             <div className="max-w-4xl mx-auto">
               <div className="flex justify-center items-center h-96">
@@ -200,11 +185,19 @@ const AdminProfilePage = () => {
         userData={userData}
         handleSignOut={signOut}
         currentPath={location?.pathname || "/admin/profile"}
+        isCollapsed={isCollapsed}
+        setIsCollapsed={setIsCollapsed}
       />
       <div
         className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${isCollapsed ? "lg:ml-16" : "lg:ml-64"}`}
       >
-        <AdminHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} session={session} />
+        <AdminHeader
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          session={session}
+          isCollapsed={isCollapsed}
+          setIsCollapsed={setIsCollapsed}
+        />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="max-w-4xl mx-auto space-y-6">
             {/* Header */}
@@ -273,35 +266,29 @@ const AdminProfilePage = () => {
 
                 {/* Form Fields */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-2">
-                      Full Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      id="full_name"
-                      name="full_name"
-                      value={formData.full_name}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-colors"
-                      required
-                    />
-                  </div>
+                  <FormInput
+                    label="Full Name"
+                    type="text"
+                    name="full_name"
+                    value={formData.full_name}
+                    onChange={handleInputChange}
+                    placeholder="Enter your full name"
+                    required
+                    icon={User}
+                    validation={nameValidation}
+                  />
 
-                  <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                      Email Address <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-colors"
-                      required
-                    />
-                  </div>
+                  <FormInput
+                    label="Email Address"
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="Enter your email address"
+                    required
+                    icon={Mail}
+                    validation={emailValidation}
+                  />
                 </div>
 
                 {/* Submit Button */}

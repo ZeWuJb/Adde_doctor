@@ -5,6 +5,9 @@ import { UserAuth } from "../context/AuthContext"
 import { fetchDoctorProfile, updateDoctorProfile, uploadDoctorImage } from "../services/profileService"
 import { User, Mail, Briefcase, DollarSign, Users, Calendar, Edit2, Save, X, Camera, Trash2 } from "lucide-react"
 import { validateImage } from "../services/imageService"
+import FormInput from "./ui/FormInput"
+import FormTextarea from "./ui/FormTextarea"
+import { nameValidation, numberValidation } from "../utils/validation"
 
 const ProfilePage = () => {
   const { session } = UserAuth()
@@ -95,7 +98,6 @@ const ProfilePage = () => {
 
       const updatedProfileData = { ...editedProfile }
 
-      // Handle image upload if there's a new image
       if (imageFile) {
         setUploadingImage(true)
         const uploadResult = await uploadDoctorImage(profile.id, imageFile)
@@ -111,7 +113,6 @@ const ProfilePage = () => {
         setUploadingImage(false)
       }
 
-      // Update profile
       const result = await updateDoctorProfile(profile.id, updatedProfileData)
 
       if (result.success) {
@@ -292,58 +293,74 @@ const ProfilePage = () => {
         <div className="mt-20 px-8 py-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Left Column - Basic Info */}
-            <div className="col-span-2">
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-600 mb-1">Full Name</label>
-                {!isEditing ? (
-                  <h1 className="text-2xl font-bold text-gray-800">{profile?.full_name || "Doctor"}</h1>
-                ) : (
-                  <input
+            <div className="col-span-2 space-y-6">
+              {!isEditing ? (
+                <>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-600 mb-1">Full Name</label>
+                    <h1 className="text-2xl font-bold text-gray-800">{profile?.full_name || "Doctor"}</h1>
+                  </div>
+
+                  <div className="flex items-center text-gray-600 mb-4">
+                    <Briefcase className="h-5 w-5 mr-2 text-pink-500" />
+                    <span>{profile?.speciality || "General Practitioner"}</span>
+                  </div>
+
+                  <div className="flex items-center text-gray-600 mb-6">
+                    <Mail className="h-5 w-5 mr-2 text-pink-500" />
+                    <span>{profile?.email}</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-2">About</label>
+                    <p className="text-gray-600 leading-relaxed">
+                      {profile?.description || "No description provided."}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-6">
+                  <FormInput
+                    label="Full Name"
                     type="text"
                     name="full_name"
                     value={editedProfile.full_name}
                     onChange={handleInputChange}
-                    className="w-full border border-gray-300 rounded-md p-3 text-xl font-semibold focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
                     placeholder="Enter your full name"
+                    required
+                    icon={User}
+                    validation={nameValidation}
                   />
-                )}
-              </div>
 
-              <div className="flex items-center text-gray-600 mb-4">
-                <Briefcase className="h-5 w-5 mr-2 text-pink-500" />
-                {!isEditing ? (
-                  <span>{profile?.speciality || "General Practitioner"}</span>
-                ) : (
-                  <input
+                  <FormInput
+                    label="Specialty"
                     type="text"
                     name="speciality"
-                    placeholder="Your speciality"
                     value={editedProfile.speciality}
                     onChange={handleInputChange}
-                    className="flex-1 border border-gray-300 rounded-md p-2 focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                    placeholder="Your medical specialty"
+                    required
+                    icon={Briefcase}
+                    validation={(value) => {
+                      if (value.length < 2) return "Specialty must be at least 2 characters"
+                      return true
+                    }}
                   />
-                )}
-              </div>
 
-              <div className="flex items-center text-gray-600 mb-6">
-                <Mail className="h-5 w-5 mr-2 text-pink-500" />
-                <span>{profile?.email}</span>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-2">About</label>
-                {!isEditing ? (
-                  <p className="text-gray-600 leading-relaxed">{profile?.description || "No description provided."}</p>
-                ) : (
-                  <textarea
+                  <FormTextarea
+                    label="About"
                     name="description"
-                    placeholder="Write something about yourself, your experience, and approach to care..."
                     value={editedProfile.description}
                     onChange={handleInputChange}
-                    className="w-full h-32 border border-gray-300 rounded-md p-3 text-gray-600 focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                    placeholder="Write something about yourself, your experience, and approach to care..."
+                    rows={4}
+                    validation={(value) => {
+                      if (value && value.length > 500) return "Description must be less than 500 characters"
+                      return true
+                    }}
                   />
-                )}
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Right Column - Stats & Additional Info */}
@@ -361,16 +378,22 @@ const ProfilePage = () => {
                           ${profile?.payment_required_amount || "0.00"}
                         </span>
                       ) : (
-                        <input
-                          type="number"
-                          name="payment_required_amount"
-                          step="0.01"
-                          min="0"
-                          value={editedProfile.payment_required_amount}
-                          onChange={handleInputChange}
-                          className="border border-gray-300 rounded-md p-2 w-full focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-                          placeholder="0.00"
-                        />
+                        <div className="w-full">
+                          <FormInput
+                            type="number"
+                            name="payment_required_amount"
+                            value={editedProfile.payment_required_amount}
+                            onChange={handleInputChange}
+                            placeholder="0.00"
+                            validation={(value) => {
+                              if (value && !isNaN(Number(value))) {
+                                return numberValidation(value, 0, 10000)
+                              }
+                              return true
+                            }}
+                            className="mt-2"
+                          />
+                        </div>
                       )}
                     </div>
                   </div>

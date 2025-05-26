@@ -1,0 +1,70 @@
+// Validation utility functions
+export const emailValidation = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(email)) {
+    return "Please enter a valid email address"
+  }
+  return true
+}
+
+export const passwordValidation = (password) => {
+  if (password.length < 6) {
+    return "Password must be at least 6 characters long"
+  }
+  if (!/(?=.*[a-z])/.test(password)) {
+    return "Password must contain at least one lowercase letter"
+  }
+  if (!/(?=.*[A-Z])/.test(password)) {
+    return "Password must contain at least one uppercase letter"
+  }
+  if (!/(?=.*\d)/.test(password)) {
+    return "Password must contain at least one number"
+  }
+  return true
+}
+
+export const nameValidation = (name) => {
+  if (name.length < 2) {
+    return "Name must be at least 2 characters long"
+  }
+  if (!/^[a-zA-Z\s.]+$/.test(name)) {
+    return "Name can only contain letters, spaces, and periods"
+  }
+  return true
+}
+
+export const phoneValidation = (phone) => {
+  const phoneRegex = /^[+]?[1-9][\d]{0,15}$/
+  if (!phoneRegex.test(phone.replace(/\s/g, ""))) {
+    return "Please enter a valid phone number"
+  }
+  return true
+}
+
+export const numberValidation = (value, min = 0, max = Number.POSITIVE_INFINITY) => {
+  const num = Number.parseFloat(value)
+  if (isNaN(num)) {
+    return "Please enter a valid number"
+  }
+  if (num < min) {
+    return `Value must be at least ${min}`
+  }
+  if (num > max) {
+    return `Value must be at most ${max}`
+  }
+  return true
+}
+
+export const requiredValidation = (value, fieldName) => {
+  if (!value || value.trim() === "") {
+    return `${fieldName} is required`
+  }
+  return true
+}
+
+export const confirmPasswordValidation = (password, confirmPassword) => {
+  if (password !== confirmPassword) {
+    return "Passwords do not match"
+  }
+  return true
+}

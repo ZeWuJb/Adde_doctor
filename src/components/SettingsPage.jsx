@@ -4,7 +4,9 @@ import { useState, useEffect } from "react"
 import { UserAuth } from "../context/AuthContext"
 import { supabase } from "../supabaseClient"
 import { getDoctorIdFromUserId } from "../services/appointmentService"
-import { Bell, Lock, Save, AlertCircle, Check, Eye, EyeOff, X } from "lucide-react"
+import { Bell, Lock, Save, AlertCircle, Check, X } from "lucide-react"
+import FormInput from "./ui/FormInput"
+import { passwordValidation, confirmPasswordValidation } from "../utils/validation"
 
 const SettingsPage = () => {
   const { session } = UserAuth()
@@ -29,9 +31,6 @@ const SettingsPage = () => {
     newPassword: "",
     confirmPassword: "",
   })
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
-  const [showNewPassword, setShowNewPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   // Fetch doctor data and settings
   useEffect(() => {
@@ -334,90 +333,37 @@ const SettingsPage = () => {
                 <h2 className="text-lg font-semibold text-gray-800 mb-6">Security Settings</h2>
 
                 <div className="space-y-6">
-                  <div>
-                    <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                      Current Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showCurrentPassword ? "text" : "password"}
-                        id="currentPassword"
-                        name="currentPassword"
-                        value={passwordForm.currentPassword}
-                        onChange={handlePasswordChange}
-                        className="block w-full px-4 py-3 pr-10 border border-gray-300 rounded-md focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-                        placeholder="Enter current password"
-                      />
-                      <button
-                        type="button"
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                      >
-                        {showCurrentPassword ? (
-                          <EyeOff className="h-5 w-5 text-gray-400" />
-                        ) : (
-                          <Eye className="h-5 w-5 text-gray-400" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
+                  <FormInput
+                    label="Current Password"
+                    type="password"
+                    name="currentPassword"
+                    value={passwordForm.currentPassword}
+                    onChange={handlePasswordChange}
+                    placeholder="Enter current password"
+                    icon={Lock}
+                  />
 
-                  <div>
-                    <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                      New Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showNewPassword ? "text" : "password"}
-                        id="newPassword"
-                        name="newPassword"
-                        value={passwordForm.newPassword}
-                        onChange={handlePasswordChange}
-                        className="block w-full px-4 py-3 pr-10 border border-gray-300 rounded-md focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-                        placeholder="Enter new password"
-                      />
-                      <button
-                        type="button"
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                        onClick={() => setShowNewPassword(!showNewPassword)}
-                      >
-                        {showNewPassword ? (
-                          <EyeOff className="h-5 w-5 text-gray-400" />
-                        ) : (
-                          <Eye className="h-5 w-5 text-gray-400" />
-                        )}
-                      </button>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">Password must be at least 8 characters long</p>
-                  </div>
+                  <FormInput
+                    label="New Password"
+                    type="password"
+                    name="newPassword"
+                    value={passwordForm.newPassword}
+                    onChange={handlePasswordChange}
+                    placeholder="Enter new password"
+                    icon={Lock}
+                    validation={passwordValidation}
+                  />
 
-                  <div>
-                    <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                      Confirm New Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showConfirmPassword ? "text" : "password"}
-                        id="confirmPassword"
-                        name="confirmPassword"
-                        value={passwordForm.confirmPassword}
-                        onChange={handlePasswordChange}
-                        className="block w-full px-4 py-3 pr-10 border border-gray-300 rounded-md focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-                        placeholder="Confirm new password"
-                      />
-                      <button
-                        type="button"
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      >
-                        {showConfirmPassword ? (
-                          <EyeOff className="h-5 w-5 text-gray-400" />
-                        ) : (
-                          <Eye className="h-5 w-5 text-gray-400" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
+                  <FormInput
+                    label="Confirm New Password"
+                    type="password"
+                    name="confirmPassword"
+                    value={passwordForm.confirmPassword}
+                    onChange={handlePasswordChange}
+                    placeholder="Confirm new password"
+                    icon={Lock}
+                    validation={(value) => confirmPasswordValidation(passwordForm.newPassword, value)}
+                  />
 
                   <div className="pt-4">
                     <button

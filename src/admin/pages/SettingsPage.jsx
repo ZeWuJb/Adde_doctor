@@ -5,8 +5,10 @@ import { UserAuth } from "../../context/AuthContext"
 import { useLocation } from "react-router-dom"
 import AdminSidebar from "../components/AdminSidebar"
 import AdminHeader from "../components/AdminHeader"
-import { User, Lock, Save, AlertCircle, Check, Eye, EyeOff } from "lucide-react"
+import { User, Lock, Save, AlertCircle, Check, Mail } from "lucide-react"
 import { supabase } from "../../supabaseClient"
+import FormInput from "../../components/ui/FormInput"
+import { emailValidation, passwordValidation, nameValidation, confirmPasswordValidation } from "../../utils/validation"
 
 const SettingsPage = () => {
   const { session, userData, signOut } = UserAuth()
@@ -15,9 +17,6 @@ const SettingsPage = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
-  const [showNewPassword, setShowNewPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const location = useLocation()
 
   // Profile form state
@@ -33,31 +32,6 @@ const SettingsPage = () => {
     newPassword: "",
     confirmPassword: "",
   })
-
-  // Check if sidebar is collapsed
-  // useEffect(() => {
-  //   const checkSidebarState = () => {
-  //     const sidebar = document.querySelector("[data-sidebar]")
-  //     if (sidebar) {
-  //       const rect = sidebar.getBoundingClientRect()
-  //       setIsCollapsed(rect.width <= 64)
-  //     }
-  //   }
-
-  //   checkSidebarState()
-  //   window.addEventListener("resize", checkSidebarState)
-
-  //   const observer = new MutationObserver(checkSidebarState)
-  //   const sidebar = document.querySelector("[data-sidebar]")
-  //   if (sidebar) {
-  //     observer.observe(sidebar, { attributes: true, attributeFilter: ["class", "style"] })
-  //   }
-
-  //   return () => {
-  //     window.removeEventListener("resize", checkSidebarState)
-  //     observer.disconnect()
-  //   }
-  // }, [])
 
   // Load admin data
   useEffect(() => {
@@ -89,6 +63,16 @@ const SettingsPage = () => {
 
   const handleSignOut = async () => {
     await signOut()
+  }
+
+  const handleProfileInputChange = (e) => {
+    const { name, value } = e.target
+    setProfileData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handlePasswordInputChange = (e) => {
+    const { name, value } = e.target
+    setPasswordData((prev) => ({ ...prev, [name]: value }))
   }
 
   const handleProfileSubmit = async (e) => {
@@ -167,14 +151,12 @@ const SettingsPage = () => {
     const file = e.target.files[0]
     if (!file) return
 
-    // Validate file type
     if (!file.type.startsWith("image/")) {
       setError("Please select a valid image file")
       setTimeout(() => setError(null), 5000)
       return
     }
 
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       setError("Image size must be less than 5MB")
       setTimeout(() => setError(null), 5000)
@@ -298,27 +280,29 @@ const SettingsPage = () => {
 
                   {/* Form Fields */}
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-                      <input
-                        type="text"
-                        value={profileData.full_name}
-                        onChange={(e) => setProfileData((prev) => ({ ...prev, full_name: e.target.value }))}
-                        className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-                        placeholder="Enter your full name"
-                      />
-                    </div>
+                    <FormInput
+                      label="Full Name"
+                      type="text"
+                      name="full_name"
+                      value={profileData.full_name}
+                      onChange={handleProfileInputChange}
+                      placeholder="Enter your full name"
+                      required
+                      icon={User}
+                      validation={nameValidation}
+                    />
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                      <input
-                        type="email"
-                        value={profileData.email}
-                        onChange={(e) => setProfileData((prev) => ({ ...prev, email: e.target.value }))}
-                        className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-                        placeholder="Enter your email"
-                      />
-                    </div>
+                    <FormInput
+                      label="Email"
+                      type="email"
+                      name="email"
+                      value={profileData.email}
+                      onChange={handleProfileInputChange}
+                      placeholder="Enter your email"
+                      required
+                      icon={Mail}
+                      validation={emailValidation}
+                    />
                   </div>
 
                   <button
@@ -343,77 +327,37 @@ const SettingsPage = () => {
 
                 <form onSubmit={handlePasswordSubmit} className="p-6 space-y-6">
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
-                      <div className="relative">
-                        <input
-                          type={showCurrentPassword ? "text" : "password"}
-                          value={passwordData.currentPassword}
-                          onChange={(e) => setPasswordData((prev) => ({ ...prev, currentPassword: e.target.value }))}
-                          className="w-full px-3 py-3 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-                          placeholder="Enter current password"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                        >
-                          {showCurrentPassword ? (
-                            <EyeOff className="h-5 w-5 text-gray-400" />
-                          ) : (
-                            <Eye className="h-5 w-5 text-gray-400" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
+                    <FormInput
+                      label="Current Password"
+                      type="password"
+                      name="currentPassword"
+                      value={passwordData.currentPassword}
+                      onChange={handlePasswordInputChange}
+                      placeholder="Enter current password"
+                      icon={Lock}
+                    />
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
-                      <div className="relative">
-                        <input
-                          type={showNewPassword ? "text" : "password"}
-                          value={passwordData.newPassword}
-                          onChange={(e) => setPasswordData((prev) => ({ ...prev, newPassword: e.target.value }))}
-                          className="w-full px-3 py-3 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-                          placeholder="Enter new password"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowNewPassword(!showNewPassword)}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                        >
-                          {showNewPassword ? (
-                            <EyeOff className="h-5 w-5 text-gray-400" />
-                          ) : (
-                            <Eye className="h-5 w-5 text-gray-400" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
+                    <FormInput
+                      label="New Password"
+                      type="password"
+                      name="newPassword"
+                      value={passwordData.newPassword}
+                      onChange={handlePasswordInputChange}
+                      placeholder="Enter new password"
+                      icon={Lock}
+                      validation={passwordValidation}
+                    />
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
-                      <div className="relative">
-                        <input
-                          type={showConfirmPassword ? "text" : "password"}
-                          value={passwordData.confirmPassword}
-                          onChange={(e) => setPasswordData((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-                          className="w-full px-3 py-3 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-                          placeholder="Confirm new password"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                        >
-                          {showConfirmPassword ? (
-                            <EyeOff className="h-5 w-5 text-gray-400" />
-                          ) : (
-                            <Eye className="h-5 w-5 text-gray-400" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
+                    <FormInput
+                      label="Confirm New Password"
+                      type="password"
+                      name="confirmPassword"
+                      value={passwordData.confirmPassword}
+                      onChange={handlePasswordInputChange}
+                      placeholder="Confirm new password"
+                      icon={Lock}
+                      validation={(value) => confirmPasswordValidation(passwordData.newPassword, value)}
+                    />
                   </div>
 
                   <button

@@ -1,8 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, Camera, Trash2, AlertCircle, Check } from "lucide-react"
+import { X, Camera, Trash2, AlertCircle, Check, Mail, User, Lock, Briefcase, DollarSign } from "lucide-react"
 import { useAdmin } from "../../hooks/useAdmin"
+import FormInput from "../../components/ui/FormInput"
+import FormTextarea from "../../components/ui/FormTextarea"
+import { emailValidation, passwordValidation, nameValidation, numberValidation } from "../../utils/validation"
 import PropTypes from "prop-types"
 
 const DoctorFormModal = ({ isOpen, onClose, doctor, onSave }) => {
@@ -67,13 +70,11 @@ const DoctorFormModal = ({ isOpen, onClose, doctor, onSave }) => {
     const file = e.target.files[0]
     if (!file) return
 
-    // Validate file type
     if (!file.type.startsWith("image/")) {
       setError("Please select a valid image file")
       return
     }
 
-    // Validate file size (5MB limit)
     if (file.size > 5 * 1024 * 1024) {
       setError("Image size should be less than 5MB")
       return
@@ -113,12 +114,10 @@ const DoctorFormModal = ({ isOpen, onClose, doctor, onSave }) => {
     const lowerName = trimmedName.toLowerCase()
 
     if (type === "doctor") {
-      // Check if name already has Dr. prefix (case insensitive)
       if (!lowerName.startsWith("dr.") && !lowerName.startsWith("dr ")) {
         return `Dr. ${trimmedName}`
       }
     } else if (type === "nurse") {
-      // Check if name already has Nur. prefix (case insensitive)
       if (!lowerName.startsWith("nur.") && !lowerName.startsWith("nur ")) {
         return `Nur. ${trimmedName}`
       }
@@ -134,33 +133,26 @@ const DoctorFormModal = ({ isOpen, onClose, doctor, onSave }) => {
     setSuccess(null)
 
     try {
-      // Validate required fields
       if (!formData.full_name || !formData.email || !formData.speciality || (!doctor && !formData.password)) {
         throw new Error("Please fill in all required fields")
       }
 
-      // Validate password for new doctors
       if (!doctor && formData.password.length < 6) {
         throw new Error("Password must be at least 6 characters long")
       }
 
-      // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
       if (!emailRegex.test(formData.email)) {
         throw new Error("Please enter a valid email address")
       }
 
-      // Validate payment amount
       if (formData.payment_required_amount && isNaN(Number(formData.payment_required_amount))) {
         throw new Error("Payment amount must be a valid number")
       }
 
       const updatedFormData = { ...formData }
-
-      // Add prefix to name based on type
       updatedFormData.full_name = addPrefixToName(formData.full_name, formData.type)
 
-      // Handle image upload if there's a new image
       if (imageFile) {
         try {
           const base64Image = await convertImageToBase64(imageFile)
@@ -173,7 +165,6 @@ const DoctorFormModal = ({ isOpen, onClose, doctor, onSave }) => {
         }
       }
 
-      // Convert payment amount to number
       if (updatedFormData.payment_required_amount) {
         updatedFormData.payment_required_amount = Number(updatedFormData.payment_required_amount)
       }
@@ -182,7 +173,6 @@ const DoctorFormModal = ({ isOpen, onClose, doctor, onSave }) => {
       if (doctor) {
         result = await updateDoctor(doctor.id, updatedFormData)
       } else {
-        // Use addDoctorWithAuth for new doctors to create auth account
         result = await addDoctorWithAuth(updatedFormData)
       }
 
@@ -291,7 +281,7 @@ const DoctorFormModal = ({ isOpen, onClose, doctor, onSave }) => {
                   name="type"
                   value={formData.type}
                   onChange={handleInputChange}
-                  className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-pink-500 focus:border-pink-500"
+                  className="block w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-pink-500 bg-white/70 backdrop-blur-sm text-gray-800 transition-all duration-200"
                   required
                 >
                   <option value="doctor">Doctor</option>
@@ -307,132 +297,112 @@ const DoctorFormModal = ({ isOpen, onClose, doctor, onSave }) => {
               </div>
 
               {/* Full Name */}
-              <div>
-                <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-1">
-                  Full Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="full_name"
-                  name="full_name"
-                  value={formData.full_name}
-                  onChange={handleInputChange}
-                  className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-pink-500 focus:border-pink-500"
-                  placeholder={
-                    formData.type === "doctor"
-                      ? "e.g., John Smith (Dr. will be added automatically)"
-                      : formData.type === "nurse"
-                        ? "e.g., Jane Doe (Nur. will be added automatically)"
-                        : "Enter full name"
-                  }
-                  required
-                />
-              </div>
+              <FormInput
+                label="Full Name"
+                type="text"
+                name="full_name"
+                value={formData.full_name}
+                onChange={handleInputChange}
+                placeholder={
+                  formData.type === "doctor"
+                    ? "e.g., John Smith (Dr. will be added automatically)"
+                    : formData.type === "nurse"
+                      ? "e.g., Jane Doe (Nur. will be added automatically)"
+                      : "Enter full name"
+                }
+                required
+                icon={User}
+                validation={nameValidation}
+              />
 
               {/* Email */}
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                  Email <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-pink-500 focus:border-pink-500"
-                  placeholder="doctor@example.com"
-                  required
-                />
-              </div>
+              <FormInput
+                label="Email"
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                placeholder="doctor@example.com"
+                required
+                icon={Mail}
+                validation={emailValidation}
+              />
 
               {/* Password - Only for new doctors */}
               {!doctor && (
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                    Default Password <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="password"
-                    id="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-pink-500 focus:border-pink-500"
-                    placeholder="Set a default password for the doctor"
-                    required={!doctor}
-                    minLength={6}
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Doctor can change this password after first login. Minimum 6 characters.
-                  </p>
-                </div>
+                <FormInput
+                  label="Default Password"
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  placeholder="Set a default password for the doctor"
+                  required={!doctor}
+                  icon={Lock}
+                  validation={passwordValidation}
+                />
               )}
 
               {/* Specialty */}
-              <div>
-                <label htmlFor="speciality" className="block text-sm font-medium text-gray-700 mb-1">
-                  Specialty <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="speciality"
-                  name="speciality"
-                  value={formData.speciality}
-                  onChange={handleInputChange}
-                  className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-pink-500 focus:border-pink-500"
-                  placeholder="e.g., Cardiology, Pediatrics, General Medicine"
-                  required
-                />
-              </div>
+              <FormInput
+                label="Specialty"
+                type="text"
+                name="speciality"
+                value={formData.speciality}
+                onChange={handleInputChange}
+                placeholder="e.g., Cardiology, Pediatrics, General Medicine"
+                required
+                icon={Briefcase}
+                validation={(value) => {
+                  if (value.length < 2) return "Specialty must be at least 2 characters"
+                  return true
+                }}
+              />
 
               {/* Description */}
-              <div>
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  rows={3}
-                  className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-pink-500 focus:border-pink-500"
-                  placeholder="Brief description about the doctor's experience and expertise"
-                />
-              </div>
+              <FormTextarea
+                label="Description"
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                placeholder="Brief description about the doctor's experience and expertise"
+                rows={3}
+                validation={(value) => {
+                  if (value && value.length > 500) return "Description must be less than 500 characters"
+                  return true
+                }}
+              />
 
               {/* Payment Amount */}
-              <div>
-                <label htmlFor="payment_required_amount" className="block text-sm font-medium text-gray-700 mb-1">
-                  Consultation Fee
-                </label>
-                <input
-                  type="number"
-                  id="payment_required_amount"
-                  name="payment_required_amount"
-                  value={formData.payment_required_amount}
-                  onChange={handleInputChange}
-                  className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-pink-500 focus:border-pink-500"
-                  placeholder="0.00"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
+              <FormInput
+                label="Consultation Fee"
+                type="number"
+                name="payment_required_amount"
+                value={formData.payment_required_amount}
+                onChange={handleInputChange}
+                placeholder="0.00"
+                icon={DollarSign}
+                validation={(value) => {
+                  if (value && !isNaN(Number(value))) {
+                    return numberValidation(value, 0, 10000)
+                  }
+                  return true
+                }}
+              />
             </div>
 
             <div className="mt-6 flex justify-end space-x-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
                 disabled={loading}
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 disabled:opacity-50"
+                className="px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 disabled:opacity-50 transition-colors"
                 disabled={loading}
               >
                 {loading ? "Saving..." : doctor ? "Update Doctor" : "Add Doctor"}
@@ -444,6 +414,7 @@ const DoctorFormModal = ({ isOpen, onClose, doctor, onSave }) => {
     </div>
   )
 }
+
 DoctorFormModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
