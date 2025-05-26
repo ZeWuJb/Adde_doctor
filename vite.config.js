@@ -18,6 +18,7 @@ export default defineConfig({
             "./src/admin/pages/PatientsPage.jsx",
             "./src/admin/pages/SystemMonitoringPage.jsx",
             "./src/admin/pages/UserRolesPage.jsx",
+            "./src/admin/pages/BabyNamesPage.jsx", // Add this line
           ],
           vendor: ["react", "react-dom", "react-router-dom"],
         },

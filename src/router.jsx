@@ -57,6 +57,7 @@ const ContentManagementPage = lazy(() => import("./admin/pages/ContentManagement
 const PatientsPage = lazy(() => import("./admin/pages/PatientsPage"))
 const SystemMonitoringPage = lazy(() => import("./admin/pages/SystemMonitoringPage"))
 const UserRolesPage = lazy(() => import("./admin/pages/UserRolesPage"))
+const BabyNamesPage = lazy(() => import("./admin/pages/BabyNamesPage"))
 
 const router = createBrowserRouter([
   {
@@ -206,6 +207,15 @@ const router = createBrowserRouter([
       {
         path: "admin/profile",
         element: <AdminProfilePage />,
+        errorElement: <ErrorFallback />,
+      },
+      {
+        path: "admin/baby-names",
+        element: (
+          <Suspense fallback={<AdminLoading />}>
+            <BabyNamesPage />
+          </Suspense>
+        ),
         errorElement: <ErrorFallback />,
       },
     ],

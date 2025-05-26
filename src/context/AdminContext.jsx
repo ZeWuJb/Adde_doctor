@@ -30,6 +30,7 @@ export const AdminContextProvider = ({ children }) => {
     storage: { status: "healthy", usage: 68, total: 500 },
     auth: { status: "healthy", activeUsers: 42, totalUsers: 189 },
   })
+  const [babyNames, setBabyNames] = useState([])
 
   const fetchAdminData = useCallback(async () => {
     if (!session || !session.user) return
@@ -167,6 +168,17 @@ export const AdminContextProvider = ({ children }) => {
     }
   }, [])
 
+  const fetchBabyNames = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from("baby_names").select("*").order("created_at", { ascending: false })
+      if (error) throw error
+      setBabyNames(data)
+    } catch (err) {
+      console.error("Error fetching baby names:", err.message)
+      setError("Failed to fetch baby names. Please try again later.")
+    }
+  }, [])
+
   const fetchRoles = useCallback(async () => {
     try {
       const { data: adminData } = await supabase
@@ -275,6 +287,7 @@ export const AdminContextProvider = ({ children }) => {
         fetchAppointments(),
         fetchWeeklyTips(),
         fetchInfoArticles(),
+        fetchBabyNames(), // Add this line
         fetchRoles(),
         fetchStats(),
         fetchSystemStatus(),
@@ -295,6 +308,7 @@ export const AdminContextProvider = ({ children }) => {
     fetchRoles,
     fetchStats,
     fetchSystemStatus,
+    fetchBabyNames,
   ])
 
   const setupSubscriptions = useCallback(() => {
@@ -333,14 +347,21 @@ export const AdminContextProvider = ({ children }) => {
         fetchStats()
       })
       .subscribe()
+    const babyNamesSubscription = supabase
+      .channel("baby-names-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "baby_names" }, () => {
+        fetchBabyNames()
+      })
+      .subscribe()
     return () => {
       supabase.removeChannel(doctorsSubscription)
       supabase.removeChannel(appointmentsSubscription)
       supabase.removeChannel(weeklyTipsSubscription)
       supabase.removeChannel(infoArticlesSubscription)
       supabase.removeChannel(patientsSubscription)
+      supabase.removeChannel(babyNamesSubscription)
     }
-  }, [fetchDoctors, fetchAppointments, fetchWeeklyTips, fetchInfoArticles, fetchPatients, fetchStats])
+  }, [fetchDoctors, fetchAppointments, fetchWeeklyTips, fetchInfoArticles, fetchPatients, fetchStats, fetchBabyNames])
 
   useEffect(() => {
     if (session && session.user) {
@@ -504,6 +525,42 @@ export const AdminContextProvider = ({ children }) => {
     }
   }
 
+  const addBabyName = async (babyNameData) => {
+    try {
+      const { data, error } = await supabase.from("baby_names").insert([babyNameData]).select()
+      if (error) throw error
+      await fetchBabyNames()
+      return { success: true, data }
+    } catch (err) {
+      console.error("Error adding baby name:", err.message)
+      return { success: false, error: err.message }
+    }
+  }
+
+  const updateBabyName = async (id, babyNameData) => {
+    try {
+      const { data, error } = await supabase.from("baby_names").update(babyNameData).eq("id", id).select()
+      if (error) throw error
+      await fetchBabyNames()
+      return { success: true, data }
+    } catch (err) {
+      console.error("Error updating baby name:", err.message)
+      return { success: false, error: err.message }
+    }
+  }
+
+  const deleteBabyName = async (id) => {
+    try {
+      const { error } = await supabase.from("baby_names").delete().eq("id", id)
+      if (error) throw error
+      await fetchBabyNames()
+      return { success: true }
+    } catch (err) {
+      console.error("Error deleting baby name:", err.message)
+      return { success: false, error: err.message }
+    }
+  }
+
   const refreshData = () => {
     fetchAllAdminData()
   }
@@ -518,6 +575,7 @@ export const AdminContextProvider = ({ children }) => {
     appointments,
     weeklyTips,
     infoArticles,
+    babyNames, // Add this line
     roles,
     stats,
     systemStatus,
@@ -529,6 +587,9 @@ export const AdminContextProvider = ({ children }) => {
     addArticle,
     updateArticle,
     deleteArticle,
+    addBabyName, // Add this line
+    updateBabyName, // Add this line
+    deleteBabyName, // Add this line
   }
 
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>

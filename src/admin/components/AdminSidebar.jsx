@@ -1,6 +1,19 @@
 "use client"
 
-import { Users, Calendar, Settings, LogOut, User, PieChart, Activity, BookOpen, Shield, Server, X } from "lucide-react"
+import {
+  Users,
+  Calendar,
+  Settings,
+  LogOut,
+  User,
+  PieChart,
+  Activity,
+  BookOpen,
+  Shield,
+  Server,
+  X,
+  Baby,
+} from "lucide-react"
 import { Link } from "react-router-dom"
 import PropTypes from "prop-types"
 import { useEffect, useState, useRef } from "react"
@@ -199,6 +212,7 @@ const AdminSidebar = ({
                   { path: "/admin/patients", icon: User, label: "Patients" },
                   { path: "/admin/appointments", icon: Calendar, label: "Appointments" },
                   { path: "/admin/content", icon: BookOpen, label: "Health Content" },
+                  { path: "/admin/baby-names", icon: Baby, label: "Baby Names" },
                   { path: "/admin/user-roles", icon: Shield, label: "Report Management" },
                   { path: "/admin/system", icon: Server, label: "System Monitoring" },
                   { path: "/admin/analytics", icon: Activity, label: "Analytics" },

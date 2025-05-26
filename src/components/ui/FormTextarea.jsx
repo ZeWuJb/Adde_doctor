@@ -61,7 +61,7 @@ const FormTextarea = ({
   return (
     <div className={`space-y-2 ${className}`}>
       {label && (
-        <label htmlFor={name} className="block text-sm font-medium text-gray-700">
+        <label htmlFor={name} className="block text-sm font-medium text-gray-700 ">
           {label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </label>
@@ -78,7 +78,7 @@ const FormTextarea = ({
           disabled={disabled}
           rows={rows}
           className={`
-            w-full px-4 py-3 border rounded-xl transition-all duration-200 bg-white/70 backdrop-blur-sm resize-none
+            w-full px-4 py-3 border rounded-xl transition-all duration-200 bg-white/70 backdrop-blur-sm resize-none text-gray-800
             ${
               error && touched
                 ? "border-red-300 focus:border-red-500 focus:ring-red-500"
