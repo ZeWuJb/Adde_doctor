@@ -1,27 +1,28 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { X, Camera, Trash2, AlertCircle, Check } from "lucide-react"
+import { useAdmin } from "../../hooks/useAdmin"
 import PropTypes from "prop-types"
-import { X, Camera, AlertCircle, Check } from "lucide-react"
-import { supabase } from "../../supabaseClient"
-import { supabaseAdmin } from "../../supabaseAdmin"
-import { uploadImageAsBase64, validateImage } from "../../services/imageService"
 
-const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
+const DoctorFormModal = ({ isOpen, onClose, doctor, onSave }) => {
+  const { addDoctor, updateDoctor } = useAdmin()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(null)
+
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
     speciality: "",
     description: "",
-    payment_required_amount: 0.0,
+    payment_required_amount: "",
     type: "doctor",
     profile_url: "",
-    password: "", // Add password field for new doctors
   })
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const [success, setSuccess] = useState(null)
-  const [uploadingImage, setUploadingImage] = useState(false)
+
+  const [imageFile, setImageFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState(null)
 
   useEffect(() => {
     if (doctor) {
@@ -30,10 +31,9 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
         email: doctor.email || "",
         speciality: doctor.speciality || "",
         description: doctor.description || "",
-        payment_required_amount: doctor.payment_required_amount || 0.0,
+        payment_required_amount: doctor.payment_required_amount || "",
         type: doctor.type || "doctor",
         profile_url: doctor.profile_url || "",
-        password: "", // Don't show existing password
       })
     } else {
       setFormData({
@@ -41,174 +41,150 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
         email: "",
         speciality: "",
         description: "",
-        payment_required_amount: 0.0,
+        payment_required_amount: "",
         type: "doctor",
         profile_url: "",
-        password: "",
       })
     }
+    setImageFile(null)
+    setImagePreview(null)
+    setError(null)
+    setSuccess(null)
   }, [doctor, isOpen])
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({
       ...prev,
-      [name]: name === "payment_required_amount" ? Number.parseFloat(value) || 0.0 : value,
+      [name]: value,
     }))
   }
 
-  const handleProfileImageChange = async (e) => {
+  const handleImageChange = (e) => {
     const file = e.target.files[0]
     if (!file) return
 
-    // Validate image
-    const validation = validateImage(file)
-    if (!validation.valid) {
-      setError(validation.error)
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      setError("Please select a valid image file")
       return
     }
 
-    setUploadingImage(true)
-    try {
-      const { success, base64, error } = await uploadImageAsBase64(file)
-      if (!success) throw error
-
-      setFormData((prev) => ({
-        ...prev,
-        profile_url: base64,
-      }))
-    } catch (err) {
-      console.error("Error uploading image:", err.message)
-      setError(err.message)
-    } finally {
-      setUploadingImage(false)
+    // Validate file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Image size should be less than 5MB")
+      return
     }
+
+    setImageFile(file)
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setImagePreview(reader.result)
+    }
+    reader.readAsDataURL(file)
+    setError(null)
   }
 
-  const addDoctorWithAuth = async (doctorData) => {
-    try {
-      // Step 1: Create Supabase auth user using admin client
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: doctorData.email.toLowerCase(),
-        password: doctorData.password,
-        email_confirm: true, // Auto-confirm email
-        user_metadata: {
-          full_name: doctorData.full_name,
-          role: "doctor",
-        },
-      })
-
-      if (authError) throw authError
-      if (!authData.user) throw new Error("Failed to create auth user")
-
-      // Step 2: Create doctor record with user_id using admin client
-      const doctorRecord = {
-        full_name: doctorData.full_name,
-        email: doctorData.email.toLowerCase(),
-        speciality: doctorData.speciality,
-        description: doctorData.description,
-        payment_required_amount: Number.parseFloat(doctorData.payment_required_amount.toFixed(2)),
-        type: doctorData.type,
-        profile_url: doctorData.profile_url,
-        user_id: authData.user.id,
-      }
-
-      const { data: doctorDbData, error: doctorError } = await supabaseAdmin
-        .from("doctors")
-        .insert(doctorRecord)
-        .select()
-
-      if (doctorError) {
-        // If doctor creation fails, clean up the auth user
-        await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
-        throw doctorError
-      }
-
-      return { success: true, data: doctorDbData[0] }
-    } catch (err) {
-      console.error("Error adding doctor with auth:", err.message)
-      return { success: false, error: err.message }
-    }
+  const handleRemoveImage = () => {
+    setImageFile(null)
+    setImagePreview(null)
+    setFormData((prev) => ({
+      ...prev,
+      profile_url: "",
+    }))
   }
 
-  const updateDoctor = async (id, doctorData) => {
-    try {
-      const updateData = {
-        full_name: doctorData.full_name,
-        email: doctorData.email,
-        speciality: doctorData.speciality,
-        description: doctorData.description,
-        payment_required_amount: Number.parseFloat(doctorData.payment_required_amount.toFixed(2)),
-        type: doctorData.type,
-        profile_url: doctorData.profile_url,
-      }
+  const convertImageToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
 
-      const { data, error } = await supabase.from("doctors").update(updateData).eq("id", id).select().single()
+  const addPrefixToName = (name, type) => {
+    if (!name || !type) return name
 
-      if (error) {
-        if (error.code === "23505") {
-          throw new Error("This email is already in use by another doctor.")
-        }
-        throw error
+    const trimmedName = name.trim()
+    const lowerName = trimmedName.toLowerCase()
+
+    if (type === "doctor") {
+      // Check if name already has Dr. prefix (case insensitive)
+      if (!lowerName.startsWith("dr.") && !lowerName.startsWith("dr ")) {
+        return `Dr. ${trimmedName}`
       }
-      return { success: true, data }
-    } catch (err) {
-      console.error("Error updating doctor:", err.message)
-      return { success: false, error: err.message }
+    } else if (type === "nurse") {
+      // Check if name already has Nur. prefix (case insensitive)
+      if (!lowerName.startsWith("nur.") && !lowerName.startsWith("nur ")) {
+        return `Nur. ${trimmedName}`
+      }
     }
+
+    return trimmedName
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    setSuccess(null)
 
     try {
+      // Validate required fields
       if (!formData.full_name || !formData.email || !formData.speciality) {
-        throw new Error("Please fill in all required fields (Full Name, Email, Specialty)")
+        throw new Error("Please fill in all required fields")
       }
 
-      // Basic email validation
+      // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
       if (!emailRegex.test(formData.email)) {
         throw new Error("Please enter a valid email address")
       }
 
-      // Password validation for new doctors
-      if (!doctor && !formData.password) {
-        throw new Error("Please provide a default password for the new doctor")
+      // Validate payment amount
+      if (formData.payment_required_amount && isNaN(Number(formData.payment_required_amount))) {
+        throw new Error("Payment amount must be a valid number")
       }
 
-      if (!doctor && formData.password.length < 6) {
-        throw new Error("Password must be at least 6 characters long")
+      const updatedFormData = { ...formData }
+
+      // Add prefix to name based on type
+      updatedFormData.full_name = addPrefixToName(formData.full_name, formData.type)
+
+      // Handle image upload if there's a new image
+      if (imageFile) {
+        try {
+          const base64Image = await convertImageToBase64(imageFile)
+          updatedFormData.profile_url = base64Image
+        } catch (uploadError) {
+          console.error("Error converting image to base64:", uploadError.message)
+          setError("Failed to process image")
+          setLoading(false)
+          return
+        }
       }
 
-      // Validate payment_required_amount
-      if (formData.payment_required_amount < 0 || formData.payment_required_amount > 99999999.99) {
-        throw new Error("Payment amount must be between 0.00 and 99999999.99")
+      // Convert payment amount to number
+      if (updatedFormData.payment_required_amount) {
+        updatedFormData.payment_required_amount = Number(updatedFormData.payment_required_amount)
       }
 
       let result
       if (doctor) {
-        // Existing doctor update logic
-        result = await updateDoctor(doctor.id, formData)
+        result = await updateDoctor(doctor.id, updatedFormData)
       } else {
-        // New doctor creation with auth
-        result = await addDoctorWithAuth(formData)
+        result = await addDoctor(updatedFormData)
       }
 
       if (result.success) {
-        setSuccess(
-          doctor
-            ? "Doctor updated successfully"
-            : "Doctor added successfully! They can now sign in with their email and password.",
-        )
-        onSave(result)
+        setSuccess(doctor ? "Doctor updated successfully" : "Doctor added successfully")
         setTimeout(() => {
+          onSave(result)
           onClose()
-        }, 2000)
+        }, 1500)
       } else {
-        setError(result.error || "Failed to save doctor")
+        throw new Error(result.error || "Failed to save doctor")
       }
     } catch (err) {
       console.error("Error saving doctor:", err.message)
@@ -218,223 +194,228 @@ const DoctorFormModal = ({ isOpen, onClose, doctor = null, onSave }) => {
     }
   }
 
+  const getImageSrc = (profileUrl) => {
+    if (!profileUrl) return "/placeholder.svg?height=96&width=96"
+    if (profileUrl.startsWith("data:")) return profileUrl
+    if (profileUrl.startsWith("http")) return profileUrl
+    return `data:image/jpeg;base64,${profileUrl}`
+  }
+
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div className="fixed inset-0 bg-gray-500 opacity-75 transition-opacity" aria-hidden="true"></div>
-        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true"></span>
-        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-          <div className="absolute top-0 right-0 pt-4 pr-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="bg-white rounded-md text-gray-400 hover:text-gray-500 focus:outline-none"
-              aria-label="Close modal"
-            >
-              <X className="h-6 w-6" aria-hidden="true" />
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold text-gray-800">{doctor ? "Edit Doctor" : "Add New Doctor"}</h2>
+            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+              <X className="h-6 w-6" />
             </button>
           </div>
-          <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">{doctor ? "Edit Doctor" : "Add New Doctor"}</h3>
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-500 text-red-700 rounded">
-                <div className="flex items-center">
-                  <AlertCircle className="h-5 w-5 mr-2" aria-hidden="true" />
-                  <span>{error}</span>
-                </div>
+
+          {success && (
+            <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg">
+              <div className="flex items-center">
+                <Check className="h-5 w-5 mr-2" />
+                <span>{success}</span>
               </div>
-            )}
-            {success && (
-              <div className="mb-4 p-3 bg-green-50 border-l-4 border-green-500 text-green-700 rounded">
-                <div className="flex items-center">
-                  <Check className="h-5 w-5 mr-2" aria-hidden="true" />
-                  <span>{success}</span>
-                </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
+              <div className="flex items-center">
+                <AlertCircle className="h-5 w-5 mr-2" />
+                <span>{error}</span>
               </div>
-            )}
-            <form onSubmit={handleSubmit}>
-              <div className="mb-6 flex justify-center">
-                <div className="relative">
-                  <img
-                    src={formData.profile_url || "/placeholder.svg?height=100&width=100"}
-                    alt="Doctor profile picture"
-                    className="h-24 w-24 rounded-full object-cover border-2 border-gray-200"
-                  />
-                  <label
-                    htmlFor="doctor-profile-image"
-                    className="absolute bottom-0 right-0 bg-pink-600 text-white p-1.5 rounded-full cursor-pointer shadow-md hover:bg-pink-700"
-                    aria-label="Upload profile image"
-                  >
-                    <Camera className="h-4 w-4" aria-hidden="true" />
-                    <input
-                      type="file"
-                      id="doctor-profile-image"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleProfileImageChange}
-                      disabled={uploadingImage}
-                    />
-                  </label>
-                  {uploadingImage && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 rounded-full">
-                      <div className="w-5 h-5 border-2 border-pink-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            <div className="space-y-6">
+              {/* Profile Image */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">Profile Image</label>
+                <div className="flex items-center space-x-6">
+                  <div className="relative">
+                    <div className="h-24 w-24 rounded-full border-4 border-white bg-white overflow-hidden shadow-lg">
+                      <img
+                        src={imagePreview || getImageSrc(formData.profile_url) || "/placeholder.svg"}
+                        alt="Profile"
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          e.target.src = "/placeholder.svg?height=96&width=96"
+                        }}
+                      />
                     </div>
-                  )}
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-1">
-                    Full Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="full_name"
-                    name="full_name"
-                    value={formData.full_name}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
-                    required
-                    aria-required="true"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                    Email <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
-                    required
-                    aria-required="true"
-                  />
-                </div>
-                {!doctor && (
-                  <div>
-                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                      Default Password <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="password"
-                      id="password"
-                      name="password"
-                      value={formData.password}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
-                      required
-                      aria-required="true"
-                      minLength="6"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Doctor can sign in immediately with this password</p>
                   </div>
-                )}
-                <div className={!doctor ? "col-span-1" : "col-span-2"}>
-                  <label htmlFor="speciality" className="block text-sm font-medium text-gray-700 mb-1">
-                    Specialty <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="speciality"
-                    name="speciality"
-                    value={formData.speciality}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
-                    required
-                    aria-required="true"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">
-                    Type <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    id="type"
-                    name="type"
-                    value={formData.type}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
-                    required
-                    aria-required="true"
-                  >
-                    <option value="doctor">Doctor</option>
-                    <option value="nurse">Nurse</option>
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="payment_required_amount" className="block text-sm font-medium text-gray-700 mb-1">
-                    Payment Required ($)
-                  </label>
-                  <input
-                    type="number"
-                    id="payment_required_amount"
-                    name="payment_required_amount"
-                    value={formData.payment_required_amount}
-                    onChange={handleInputChange}
-                    min="0"
-                    step="0.01"
-                    max="99999999.99"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    id="description"
-                    name="description"
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
-                    rows="4"
-                  />
+
+                  <div className="flex flex-col space-y-2">
+                    <label className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                      <Camera className="h-4 w-4 mr-2" />
+                      Upload Image
+                      <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+                    </label>
+
+                    {(imagePreview || formData.profile_url) && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveImage}
+                        className="inline-flex items-center px-4 py-2 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-700 bg-white hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remove
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="mt-6 flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
+
+              {/* Type Selection */}
+              <div>
+                <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">
+                  Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="type"
+                  name="type"
+                  value={formData.type}
+                  onChange={handleInputChange}
+                  className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-pink-500 focus:border-pink-500"
+                  required
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 disabled:opacity-50"
-                  disabled={loading || uploadingImage}
-                >
-                  {loading ? "Saving..." : doctor ? "Update Doctor" : "Add Doctor"}
-                </button>
+                  <option value="doctor">Doctor</option>
+                  <option value="nurse">Nurse</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  {formData.type === "doctor"
+                    ? "Will automatically add 'Dr.' prefix if not present"
+                    : formData.type === "nurse"
+                      ? "Will automatically add 'Nur.' prefix if not present"
+                      : "Select type to see prefix information"}
+                </p>
               </div>
-            </form>
-          </div>
+
+              {/* Full Name */}
+              <div>
+                <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-1">
+                  Full Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="full_name"
+                  name="full_name"
+                  value={formData.full_name}
+                  onChange={handleInputChange}
+                  className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-pink-500 focus:border-pink-500"
+                  placeholder={
+                    formData.type === "doctor"
+                      ? "e.g., John Smith (Dr. will be added automatically)"
+                      : formData.type === "nurse"
+                        ? "e.g., Jane Doe (Nur. will be added automatically)"
+                        : "Enter full name"
+                  }
+                  required
+                />
+              </div>
+
+              {/* Email */}
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-pink-500 focus:border-pink-500"
+                  placeholder="doctor@example.com"
+                  required
+                />
+              </div>
+
+              {/* Specialty */}
+              <div>
+                <label htmlFor="speciality" className="block text-sm font-medium text-gray-700 mb-1">
+                  Specialty <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="speciality"
+                  name="speciality"
+                  value={formData.speciality}
+                  onChange={handleInputChange}
+                  className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-pink-500 focus:border-pink-500"
+                  placeholder="e.g., Cardiology, Pediatrics, General Medicine"
+                  required
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  id="description"
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  rows={3}
+                  className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-pink-500 focus:border-pink-500"
+                  placeholder="Brief description about the doctor's experience and expertise"
+                />
+              </div>
+
+              {/* Payment Amount */}
+              <div>
+                <label htmlFor="payment_required_amount" className="block text-sm font-medium text-gray-700 mb-1">
+                  Consultation Fee
+                </label>
+                <input
+                  type="number"
+                  id="payment_required_amount"
+                  name="payment_required_amount"
+                  value={formData.payment_required_amount}
+                  onChange={handleInputChange}
+                  className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-pink-500 focus:border-pink-500"
+                  placeholder="0.00"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 disabled:opacity-50"
+                disabled={loading}
+              >
+                {loading ? "Saving..." : doctor ? "Update Doctor" : "Add Doctor"}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
   )
 }
-
 DoctorFormModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
-  doctor: PropTypes.shape({
-    id: PropTypes.string, // UUID from schema
-    full_name: PropTypes.string,
-    email: PropTypes.string,
-    speciality: PropTypes.string,
-    description: PropTypes.string,
-    payment_required_amount: PropTypes.number,
-    type: PropTypes.oneOf(["doctor", "nurse"]),
-    profile_url: PropTypes.string,
-    created_at: PropTypes.string,
-    user_id: PropTypes.string,
-  }),
+  doctor: PropTypes.object,
   onSave: PropTypes.func.isRequired,
 }
 

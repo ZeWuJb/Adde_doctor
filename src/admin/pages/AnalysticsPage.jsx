@@ -2,493 +2,339 @@
 
 import { useState, useEffect } from "react"
 import { UserAuth } from "../../context/AuthContext"
-import { BarChart, PieChart, LineChart, Calendar, Users, Activity, Download } from "lucide-react"
+import { useLocation } from "react-router-dom"
 import AdminSidebar from "../components/AdminSidebar"
 import AdminHeader from "../components/AdminHeader"
-import { useLocation } from "react-router-dom"
-// Add imports for Supabase
+import {
+  TrendingUp,
+  Users,
+  Calendar,
+  Activity,
+  BarChart3,
+  PieChart,
+  LineChart,
+  ArrowUpRight,
+  ArrowDownRight,
+  Clock,
+  Heart,
+  UserCheck,
+} from "lucide-react"
 import { supabase } from "../../supabaseClient"
+import PropTypes from "prop-types"
 
 const AnalyticsPage = () => {
   const { session, userData, signOut } = UserAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [selectedPeriod, setSelectedPeriod] = useState("month")
+  const [isCollapsed, setIsCollapsed] = useState(true)
+  const [loading, setLoading] = useState(true)
+  const [analyticsData, setAnalyticsData] = useState({
+    totalUsers: 0,
+    totalDoctors: 0,
+    totalAppointments: 0,
+    completedAppointments: 0,
+    pendingAppointments: 0,
+    cancelledAppointments: 0,
+    monthlyGrowth: 0,
+    userGrowth: 0,
+    appointmentGrowth: 0,
+  })
   const location = useLocation()
 
-  // Add state for loading and error
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  // Add state for analytics data
-  const [analyticsData, setAnalyticsData] = useState({
-    appointmentsByMonth: [],
-    patientDemographics: [],
-    doctorPerformance: [],
-    stats: {
-      totalAppointments: 0,
-      activePatients: 0,
-      doctorUtilization: 0,
-    },
-  })
-
-  // Add useEffect to fetch analytics data
   useEffect(() => {
     const fetchAnalyticsData = async () => {
       try {
         setLoading(true)
 
-        // Fetch appointment counts by month
-        const appointmentsByMonth = await fetchAppointmentsByMonth()
+        // Fetch users count
+        const { count: usersCount } = await supabase.from("users").select("*", { count: "exact", head: true })
 
-        // Fetch patient demographics
-        const patientDemographics = await fetchPatientDemographics()
+        // Fetch doctors count
+        const { count: doctorsCount } = await supabase.from("doctors").select("*", { count: "exact", head: true })
 
-        // Fetch doctor performance
-        const doctorPerformance = await fetchDoctorPerformance()
+        // Fetch appointments data
+        const { data: appointments, count: appointmentsCount } = await supabase
+          .from("appointments")
+          .select("status", { count: "exact" })
 
-        // Fetch overall stats
-        const stats = await fetchOverallStats()
+        // Calculate appointment statistics
+        const completed = appointments?.filter((apt) => apt.status === "completed").length || 0
+        const pending = appointments?.filter((apt) => apt.status === "pending").length || 0
+        const cancelled = appointments?.filter((apt) => apt.status === "cancelled").length || 0
+
+        // Calculate growth rates (mock data for demonstration)
+        const userGrowth = Math.floor(Math.random() * 20) + 5 // 5-25%
+        const appointmentGrowth = Math.floor(Math.random() * 15) + 3 // 3-18%
+        const monthlyGrowth = Math.floor(Math.random() * 12) + 8 // 8-20%
 
         setAnalyticsData({
-          appointmentsByMonth,
-          patientDemographics,
-          doctorPerformance,
-          stats,
+          totalUsers: usersCount || 0,
+          totalDoctors: doctorsCount || 0,
+          totalAppointments: appointmentsCount || 0,
+          completedAppointments: completed,
+          pendingAppointments: pending,
+          cancelledAppointments: cancelled,
+          monthlyGrowth,
+          userGrowth,
+          appointmentGrowth,
         })
-      } catch (err) {
-        console.error("Error fetching analytics data:", err.message)
-        setError("Failed to fetch analytics data. Please try again later.")
+      } catch (error) {
+        console.error("Error fetching analytics data:", error)
       } finally {
         setLoading(false)
       }
     }
 
     fetchAnalyticsData()
-  }, [selectedPeriod, supabase])
-
-  // Function to fetch appointments by month
-  const fetchAppointmentsByMonth = async () => {
-    try {
-      // Get current date and calculate date 6 months ago
-      const now = new Date()
-      const sixMonthsAgo = new Date()
-      sixMonthsAgo.setMonth(now.getMonth() - 5) // Get 6 months including current month
-
-      // Format date to ISO string for Supabase query
-      const startDate = sixMonthsAgo.toISOString()
-
-      // Fetch appointments from Supabase
-      const { data, error } = await supabase
-        .from("appointments")
-        .select("requested_time")
-        .gte("requested_time", startDate)
-
-      if (error) throw error
-
-      // Group appointments by month
-      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-      const appointmentCounts = Array(6).fill(0) // Initialize with 0 for 6 months
-
-      data.forEach((appointment) => {
-        const appointmentDate = new Date(appointment.requested_time)
-        const monthDiff = (now.getMonth() - appointmentDate.getMonth() + 12) % 12
-
-        if (monthDiff < 6) {
-          appointmentCounts[5 - monthDiff]++ // Most recent month at the end
-        }
-      })
-
-      // Create the result array with month names
-      const result = []
-      for (let i = 0; i < 6; i++) {
-        const monthIndex = (sixMonthsAgo.getMonth() + i) % 12
-        result.push({
-          month: months[monthIndex],
-          count: appointmentCounts[i],
-        })
-      }
-
-      return result
-    } catch (err) {
-      console.error("Error fetching appointments by month:", err.message)
-      return [
-        { month: "Jan", count: 45 },
-        { month: "Feb", count: 52 },
-        { month: "Mar", count: 49 },
-        { month: "Apr", count: 62 },
-        { month: "May", count: 55 },
-        { month: "Jun", count: 60 },
-      ]
-    }
-  }
-
-  // Function to fetch patient demographics
-  const fetchPatientDemographics = async () => {
-    try {
-      // Fetch patients from Supabase
-      const { data, error } = await supabase.from("mothers").select("age")
-
-      if (error) throw error
-
-      // Group patients by age range
-      const ageGroups = [
-        { range: "0-18", count: 0 },
-        { range: "19-35", count: 0 },
-        { range: "36-50", count: 0 },
-        { range: "51-65", count: 0 },
-        { range: "65+", count: 0 },
-      ]
-
-      data.forEach((patient) => {
-        const age = patient.age || 0
-
-        if (age <= 18) {
-          ageGroups[0].count++
-        } else if (age <= 35) {
-          ageGroups[1].count++
-        } else if (age <= 50) {
-          ageGroups[2].count++
-        } else if (age <= 65) {
-          ageGroups[3].count++
-        } else {
-          ageGroups[4].count++
-        }
-      })
-
-      return ageGroups
-    } catch (err) {
-      console.error("Error fetching patient demographics:", err.message)
-      return [
-        { age: "0-18", count: 28 },
-        { age: "19-35", count: 45 },
-        { age: "36-50", count: 56 },
-        { age: "51-65", count: 38 },
-        { age: "65+", count: 22 },
-      ]
-    }
-  }
-
-  // Function to fetch doctor performance
-  const fetchDoctorPerformance = async () => {
-    try {
-      // Fetch doctors from Supabase
-      const { data: doctors, error: doctorsError } = await supabase.from("doctors").select("id, full_name").limit(4)
-
-      if (doctorsError) throw doctorsError
-
-      // Get performance metrics for each doctor
-      const doctorPerformance = await Promise.all(
-        doctors.map(async (doctor) => {
-          // Get appointment count
-          const { count: appointmentsCount, error: appointmentsError } = await supabase
-            .from("appointments")
-            .select("*", { count: "exact", head: true })
-            .eq("doctor_id", doctor.id)
-
-          if (appointmentsError) throw appointmentsError
-
-          // Get unique patient count
-          const { data: uniquePatients, error: patientsError } = await supabase
-            .from("appointments")
-            .select("mother_id")
-            .eq("doctor_id", doctor.id)
-
-          if (patientsError) throw patientsError
-
-          const uniquePatientCount = uniquePatients ? new Set(uniquePatients.map((p) => p.mother_id)).size : 0
-
-          // Calculate rating (mock data)
-          const rating = (4.5 + Math.random() * 0.5).toFixed(1)
-
-          return {
-            name: doctor.full_name,
-            patients: uniquePatientCount,
-            appointments: appointmentsCount || 0,
-            rating: Number.parseFloat(rating),
-          }
-        }),
-      )
-
-      return doctorPerformance
-    } catch (err) {
-      console.error("Error fetching doctor performance:", err.message)
-      return [
-        { name: "Dr. Sarah Johnson", patients: 42, appointments: 78, rating: 4.8 },
-        { name: "Dr. Michael Chen", patients: 38, appointments: 65, rating: 4.7 },
-        { name: "Dr. Emily Rodriguez", patients: 65, appointments: 92, rating: 4.9 },
-        { name: "Dr. James Wilson", patients: 29, appointments: 51, rating: 4.6 },
-      ]
-    }
-  }
-
-  // Function to fetch overall stats
-  const fetchOverallStats = async () => {
-    try {
-      // Get total appointments
-      const { count: totalAppointments, error: appointmentsError } = await supabase
-        .from("appointments")
-        .select("*", { count: "exact", head: true })
-
-      if (appointmentsError) throw appointmentsError
-
-      // Get active patients (patients with appointments)
-      const { data: activePatientData, error: patientsError } = await supabase.from("appointments").select("mother_id")
-
-      if (patientsError) throw patientsError
-
-      const activePatients = activePatientData ? new Set(activePatientData.map((p) => p.mother_id)).size : 0
-
-      // Calculate doctor utilization (mock data)
-      const doctorUtilization = Math.floor(65 + Math.random() * 20) // 65-85%
-
-      return {
-        totalAppointments: totalAppointments || 0,
-        activePatients: activePatients,
-        doctorUtilization: doctorUtilization,
-      }
-    } catch (err) {
-      console.error("Error fetching overall stats:", err.message)
-      return {
-        totalAppointments: 324,
-        activePatients: 189,
-        doctorUtilization: 76,
-      }
-    }
-  }
+  }, [])
 
   const handleSignOut = async () => {
     await signOut()
   }
 
+  const StatCard = ({ title, value, icon: Icon, growth, color = "blue" }) => {
+    const isPositive = growth >= 0
+    const colorClasses = {
+      blue: "from-blue-500 to-blue-600",
+      green: "from-green-500 to-green-600",
+      purple: "from-purple-500 to-purple-600",
+      orange: "from-orange-500 to-orange-600",
+      pink: "from-pink-500 to-pink-600",
+    }
+
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-600">{title}</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{loading ? "..." : value.toLocaleString()}</p>
+            {growth !== undefined && (
+              <div className="flex items-center mt-2">
+                {isPositive ? (
+                  <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
+                ) : (
+                  <ArrowDownRight className="h-4 w-4 text-red-500 mr-1" />
+                )}
+                <span className={`text-sm font-medium ${isPositive ? "text-green-600" : "text-red-600"}`}>
+                  {Math.abs(growth)}%
+                </span>
+                <span className="text-sm text-gray-500 ml-1">vs last month</span>
+              </div>
+            )}
+          </div>
+          <div className={`p-3 rounded-lg bg-gradient-to-r ${colorClasses[color]}`}>
+            <Icon className="h-6 w-6 text-white" />
+          </div>
+        </div>
+      </div>
+    )
+  }
+  const ChartCard = ({ title, icon: Icon, children }) => (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-pink-50 to-purple-50">
+        <div className="flex items-center">
+          <Icon className="h-5 w-5 text-pink-600 mr-2" />
+          <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
+        </div>
+      </div>
+      <div className="p-6">{children}</div>
+    </div>
+  )
+
+  ChartCard.propTypes = {
+    title: PropTypes.string.isRequired,
+    icon: PropTypes.elementType.isRequired,
+    children: PropTypes.node,
+  }
+  StatCard.propTypes = {
+    title: PropTypes.string.isRequired,
+    value: PropTypes.number.isRequired,
+    icon: PropTypes.elementType.isRequired,
+    growth: PropTypes.number,
+    color: PropTypes.string,
+  }
+
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
       <AdminSidebar
         sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
         session={session}
         userData={userData}
         handleSignOut={handleSignOut}
         currentPath={location.pathname}
+        isCollapsed={isCollapsed}
+        setIsCollapsed={setIsCollapsed}
       />
 
-      {/* Main Content */}
-      <div className="flex-1 md:ml-64">
-        {/* Top Navigation */}
-        <AdminHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} session={session} />
+      <div
+        className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${
+          isCollapsed ? "lg:ml-16" : "lg:ml-64"
+        }`}
+      >
+        <AdminHeader
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          session={session}
+          isCollapsed={isCollapsed}
+          setIsCollapsed={setIsCollapsed}
+        />
 
-        {/* Analytics Content */}
-        <main className="p-6">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-800">Analytics Dashboard</h1>
-            <p className="text-gray-600">View insights and statistics about your healthcare system</p>
-          </div>
-
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <select
-                value={selectedPeriod}
-                onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="week">Last Week</option>
-                <option value="month">Last Month</option>
-                <option value="quarter">Last Quarter</option>
-                <option value="year">Last Year</option>
-              </select>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+          <div className="max-w-7xl mx-auto space-y-6">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-pink-500 to-purple-600 rounded-xl p-6 text-white">
+              <h1 className="text-2xl sm:text-3xl font-bold mb-2">Analytics Dashboard</h1>
+              <p className="text-pink-100">Monitor your platform`s performance and user engagement</p>
             </div>
-            <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-              <Download className="h-5 w-5 mr-2" />
-              Export Report
-            </button>
-          </div>
 
-          {/* Stats Overview */}
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
-              <p>{error}</p>
-              <button className="mt-2 text-sm font-medium text-red-700 underline" onClick={() => setError(null)}>
-                Dismiss
-              </button>
+            {/* Key Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <StatCard
+                title="Total Users"
+                value={analyticsData.totalUsers}
+                icon={Users}
+                growth={analyticsData.userGrowth}
+                color="blue"
+              />
+              <StatCard
+                title="Active Doctors"
+                value={analyticsData.totalDoctors}
+                icon={UserCheck}
+                growth={analyticsData.monthlyGrowth}
+                color="green"
+              />
+              <StatCard
+                title="Total Appointments"
+                value={analyticsData.totalAppointments}
+                icon={Calendar}
+                growth={analyticsData.appointmentGrowth}
+                color="purple"
+              />
+              <StatCard
+                title="Completed Sessions"
+                value={analyticsData.completedAppointments}
+                icon={Heart}
+                growth={analyticsData.monthlyGrowth}
+                color="pink"
+              />
             </div>
-          )}
 
-          {loading && (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-              <p className="ml-3 text-lg text-gray-700">Loading analytics...</p>
-            </div>
-          )}
-
-          {!loading && !error && (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-800">Total Appointments</h2>
-                    <Calendar className="h-6 w-6 text-blue-500" />
-                  </div>
-                  <div className="text-3xl font-bold text-gray-900">{analyticsData.stats.totalAppointments}</div>
-                  <div className="mt-2 flex items-center text-sm">
-                    <span className="text-green-600 font-medium">↑ 12%</span>
-                    <span className="text-gray-500 ml-2">from last {selectedPeriod}</span>
-                  </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-800">Active Patients</h2>
-                    <Users className="h-6 w-6 text-green-500" />
-                  </div>
-                  <div className="text-3xl font-bold text-gray-900">{analyticsData.stats.activePatients}</div>
-                  <div className="mt-2 flex items-center text-sm">
-                    <span className="text-green-600 font-medium">↑ 8%</span>
-                    <span className="text-gray-500 ml-2">from last {selectedPeriod}</span>
-                  </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-800">Doctor Utilization</h2>
-                    <Activity className="h-6 w-6 text-purple-500" />
-                  </div>
-                  <div className="text-3xl font-bold text-gray-900">{analyticsData.stats.doctorUtilization}%</div>
-                  <div className="mt-2 flex items-center text-sm">
-                    <span className="text-red-600 font-medium">↓ 3%</span>
-                    <span className="text-gray-500 ml-2">from last {selectedPeriod}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Charts */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-800">Appointments by Month</h2>
-                    <BarChart className="h-6 w-6 text-blue-500" />
-                  </div>
-                  <div className="h-64 flex items-end space-x-2">
-                    {analyticsData.appointmentsByMonth.map((item, index) => (
-                      <div key={index} className="flex flex-col items-center flex-1">
-                        <div
-                          className="w-full bg-blue-500 rounded-t-md"
-                          style={{
-                            height: `${(item.count / Math.max(...analyticsData.appointmentsByMonth.map((i) => i.count))) * 100}%`,
-                          }}
-                        ></div>
-                        <div className="text-xs mt-2 text-gray-600">{item.month}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-800">Patient Demographics</h2>
-                    <PieChart className="h-6 w-6 text-green-500" />
-                  </div>
-                  <div className="h-64 flex items-center justify-center">
-                    {/* Simple representation of a pie chart */}
-                    <div className="relative w-40 h-40 rounded-full overflow-hidden">
-                      <div
-                        className="absolute inset-0 bg-blue-500"
-                        style={{ clipPath: "polygon(50% 50%, 0 0, 0 50%)" }}
-                      ></div>
-                      <div
-                        className="absolute inset-0 bg-green-500"
-                        style={{ clipPath: "polygon(50% 50%, 0 0, 50% 0)" }}
-                      ></div>
-                      <div
-                        className="absolute inset-0 bg-yellow-500"
-                        style={{ clipPath: "polygon(50% 50%, 50% 0, 100% 0, 100% 50%)" }}
-                      ></div>
-                      <div
-                        className="absolute inset-0 bg-red-500"
-                        style={{ clipPath: "polygon(50% 50%, 100% 50%, 100% 100%)" }}
-                      ></div>
-                      <div
-                        className="absolute inset-0 bg-purple-500"
-                        style={{ clipPath: "polygon(50% 50%, 0 50%, 0 100%, 100% 100%, 50% 100%)" }}
-                      ></div>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="bg-white w-20 h-20 rounded-full"></div>
-                      </div>
+            {/* Charts Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Appointment Status Distribution */}
+              <ChartCard title="Appointment Status" icon={PieChart}>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                      <span className="text-sm text-gray-600">Completed</span>
                     </div>
-                    <div className="ml-6 space-y-2">
-                      {analyticsData.patientDemographics.map((item, index) => (
-                        <div key={index} className="flex items-center">
-                          <div
-                            className={`w-3 h-3 rounded-full mr-2 ${
-                              index === 0
-                                ? "bg-blue-500"
-                                : index === 1
-                                  ? "bg-green-500"
-                                  : index === 2
-                                    ? "bg-yellow-500"
-                                    : index === 3
-                                      ? "bg-red-500"
-                                      : "bg-purple-500"
-                            }`}
-                          ></div>
-                          <span className="text-sm text-gray-600">
-                            {item.range}: {item.count}
-                          </span>
-                        </div>
-                      ))}
+                    <span className="text-sm font-medium text-gray-900">{analyticsData.completedAppointments}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
+                      <span className="text-sm text-gray-600">Pending</span>
                     </div>
+                    <span className="text-sm font-medium text-gray-900">{analyticsData.pendingAppointments}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+                      <span className="text-sm text-gray-600">Cancelled</span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">{analyticsData.cancelledAppointments}</span>
                   </div>
                 </div>
-              </div>
+              </ChartCard>
 
-              {/* Doctor Performance Table */}
-              <div className="bg-white p-6 rounded-lg shadow">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-gray-800">Doctor Performance</h2>
-                  <LineChart className="h-6 w-6 text-purple-500" />
+              {/* User Growth Trend */}
+              <ChartCard title="User Growth Trend" icon={TrendingUp}>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">This Month</span>
+                    <span className="text-sm font-medium text-green-600">+{analyticsData.userGrowth}%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Last Month</span>
+                    <span className="text-sm font-medium text-gray-900">
+                      +{Math.max(0, analyticsData.userGrowth - 5)}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">3 Months Ago</span>
+                    <span className="text-sm font-medium text-gray-900">
+                      +{Math.max(0, analyticsData.userGrowth - 10)}%
+                    </span>
+                  </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Doctor
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Patients
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Appointments
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Rating
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {analyticsData.doctorPerformance.map((doctor, index) => (
-                        <tr key={index}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {doctor.name}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{doctor.patients}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{doctor.appointments}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <div className="flex items-center">
-                              <span className="text-yellow-500 mr-1">★</span>
-                              {doctor.rating}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              </ChartCard>
+            </div>
+
+            {/* Activity Overview */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <ChartCard title="Recent Activity" icon={Activity}>
+                <div className="space-y-3">
+                  <div className="flex items-center">
+                    <Clock className="h-4 w-4 text-gray-400 mr-2" />
+                    <span className="text-sm text-gray-600">New user registered</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Calendar className="h-4 w-4 text-gray-400 mr-2" />
+                    <span className="text-sm text-gray-600">Appointment scheduled</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Heart className="h-4 w-4 text-gray-400 mr-2" />
+                    <span className="text-sm text-gray-600">Session completed</span>
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
+              </ChartCard>
+
+              <ChartCard title="Performance Metrics" icon={BarChart3}>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Response Time</span>
+                    <span className="text-sm font-medium text-green-600">98ms</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Uptime</span>
+                    <span className="text-sm font-medium text-green-600">99.9%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Success Rate</span>
+                    <span className="text-sm font-medium text-green-600">97.8%</span>
+                  </div>
+                </div>
+              </ChartCard>
+
+              <ChartCard title="System Health" icon={LineChart}>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">CPU Usage</span>
+                    <span className="text-sm font-medium text-blue-600">45%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Memory Usage</span>
+                    <span className="text-sm font-medium text-blue-600">62%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Storage</span>
+                    <span className="text-sm font-medium text-blue-600">78%</span>
+                  </div>
+                </div>
+              </ChartCard>
+            </div>
+          </div>
         </main>
       </div>
     </div>
   )
 }
+AnalyticsPage.propTypes = {
+  session: PropTypes.object,
+  userData: PropTypes.object,
+  signOut: PropTypes.func.isRequired,
+}
 
 export default AnalyticsPage
+

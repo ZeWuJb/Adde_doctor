@@ -5,13 +5,15 @@ import { UserAuth } from "../../context/AuthContext"
 import { useLocation } from "react-router-dom"
 import AdminSidebar from "../components/AdminSidebar"
 import AdminHeader from "../components/AdminHeader"
-import { BookOpen, Plus, Search, Edit, Trash2 } from "lucide-react"
+import { BookOpen, Plus, Search, Edit, Trash2, AlertCircle, Check } from "lucide-react"
 import { AdminContext } from "../../context/AdminContext"
 
 const ContentManagementPage = () => {
   const { session, userData, signOut } = UserAuth()
-  const { loading, error, setError, weeklyTips, infoArticles, addArticle, deleteArticle } = React.useContext(AdminContext)
+  const { loading, error, setError, weeklyTips, infoArticles, addArticle, deleteArticle } =
+    React.useContext(AdminContext)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(true)
   const [filteredWeeklyTips, setFilteredWeeklyTips] = useState([])
   const [filteredInfoArticles, setFilteredInfoArticles] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -42,15 +44,37 @@ const ContentManagementPage = () => {
   const [formError, setFormError] = useState(null)
   const location = useLocation()
 
-  // Helper function to format raw Base64 for img src
+  // Check if sidebar is collapsed
+  // useEffect(() => {
+  //   const checkSidebarState = () => {
+  //     const sidebar = document.querySelector("[data-sidebar]")
+  //     if (sidebar) {
+  //       const rect = sidebar.getBoundingClientRect()
+  //       setIsCollapsed(rect.width <= 64)
+  //     }
+  //   }
+
+  //   checkSidebarState()
+  //   window.addEventListener("resize", checkSidebarState)
+
+  //   const observer = new MutationObserver(checkSidebarState)
+  //   const sidebar = document.querySelector("[data-sidebar]")
+  //   if (sidebar) {
+  //     observer.observe(sidebar, { attributes: true, attributeFilter: ["class", "style"] })
+  //   }
+
+  //   return () => {
+  //     window.removeEventListener("resize", checkSidebarState)
+  //     observer.disconnect()
+  //   }
+  // }, [])
+
   const getImageSrc = (base64) => {
     if (!base64) return ""
-    // Assume JPEG for consistency; adjust if other formats are needed
     return `data:image/jpeg;base64,${base64}`
   }
 
   useEffect(() => {
-    // Filter weekly_tips
     if (weeklyTips.length === 0) {
       setFilteredWeeklyTips([])
     } else {
@@ -65,7 +89,6 @@ const ContentManagementPage = () => {
       setFilteredWeeklyTips(filtered)
     }
 
-    // Filter info1
     if (infoArticles.length === 0) {
       setFilteredInfoArticles([])
     } else {
@@ -111,7 +134,7 @@ const ContentManagementPage = () => {
           setFormError("Please fill in all required fields (Week, English Title, English Description)")
           return
         }
-        const weekNumber = parseInt(data.week, 10)
+        const weekNumber = Number.parseInt(data.week, 10)
         if (isNaN(weekNumber) || weekNumber < 1) {
           setFormError("Week must be a valid positive number")
           return
@@ -123,9 +146,7 @@ const ContentManagementPage = () => {
           description_en: data.description_en,
           description_am: data.description_am || null,
         }
-        console.log("Adding weekly tip:", weeklyTipPayload, "Image file:", data.imageFile)
         const result = await addArticle(table, weeklyTipPayload, data.imageFile)
-        console.log("Add article result:", result)
         if (result.success) {
           setSuccess("Weekly tip added successfully")
           setWeeklyTipData({
@@ -157,9 +178,7 @@ const ContentManagementPage = () => {
           text_en: data.text_en,
           text_am: data.text_am || null,
         }
-        console.log("Adding info content:", infoPayload, "Image file:", data.imageFile)
         const result = await addArticle(table, infoPayload, data.imageFile)
-        console.log("Add article result:", result)
         if (result.success) {
           setSuccess("Info content added successfully")
           setInfoData({
@@ -202,9 +221,36 @@ const ContentManagementPage = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500"></div>
-        <p className="ml-3 text-lg text-gray-700">Loading content...</p>
+      <div className="flex h-screen bg-gray-50">
+        <AdminSidebar
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          session={session}
+          userData={userData}
+          handleSignOut={handleSignOut}
+          currentPath={location.pathname}
+          isCollapsed={isCollapsed}
+          setIsCollapsed={setIsCollapsed}
+        />
+        <div
+          className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${isCollapsed ? "lg:ml-16" : "lg:ml-64"}`}
+        >
+          <AdminHeader
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            session={session}
+            isCollapsed={isCollapsed}
+            setIsCollapsed={setIsCollapsed}
+          />
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+            <div className="max-w-7xl mx-auto">
+              <div className="flex justify-center items-center h-96">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500"></div>
+                <p className="ml-3 text-lg text-gray-700">Loading content...</p>
+              </div>
+            </div>
+          </main>
+        </div>
       </div>
     )
   }
@@ -213,203 +259,267 @@ const ContentManagementPage = () => {
     <div className="flex h-screen bg-gray-50">
       <AdminSidebar
         sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
         session={session}
         userData={userData}
         handleSignOut={handleSignOut}
         currentPath={location.pathname}
+        isCollapsed={isCollapsed}
+        setIsCollapsed={setIsCollapsed}
       />
-      <div className="flex-1 md:ml-64">
-        <AdminHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} session={session} />
-        <main className="p-6">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-800">Content Management</h1>
-            <p className="text-gray-600">Manage weekly health tips and info content</p>
-          </div>
-
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
-              <p>{error}</p>
-              <button className="mt-2 text-sm font-medium text-red-700 underline" onClick={() => setError(null)}>
-                Dismiss
-              </button>
+      <div
+        className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${isCollapsed ? "lg:ml-16" : "lg:ml-64"}`}
+      >
+        <AdminHeader
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          session={session}
+          isCollapsed={isCollapsed}
+          setIsCollapsed={setIsCollapsed}
+        />
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+          <div className="max-w-7xl mx-auto space-y-6">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-pink-500 to-purple-600 rounded-xl p-6 text-white">
+              <h1 className="text-2xl sm:text-3xl font-bold mb-2">Content Management</h1>
+              <p className="text-pink-100">Manage weekly health tips and informational content</p>
             </div>
-          )}
 
-          {success && (
-            <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg">
-              <p>{success}</p>
-              <button className="mt-2 text-sm font-medium text-green-700 underline" onClick={() => setSuccess(null)}>
-                Dismiss
-              </button>
-            </div>
-          )}
+            {/* Alerts */}
+            {error && (
+              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+                <div className="flex items-center">
+                  <AlertCircle className="h-5 w-5 text-red-400 mr-2" />
+                  <span className="text-red-700">{error}</span>
+                  <button className="ml-auto text-sm font-medium text-red-700 underline" onClick={() => setError(null)}>
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
 
-          {formError && (
-            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
-              <p>{formError}</p>
-              <button className="mt-2 text-sm font-medium text-red-700 underline" onClick={() => setFormError(null)}>
-                Dismiss
-              </button>
-            </div>
-          )}
+            {success && (
+              <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg">
+                <div className="flex items-center">
+                  <Check className="h-5 w-5 text-green-400 mr-2" />
+                  <span className="text-green-700">{success}</span>
+                  <button
+                    className="ml-auto text-sm font-medium text-green-700 underline"
+                    onClick={() => setSuccess(null)}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
 
-          <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="relative w-full md:w-64">
-              <input
-                type="text"
-                placeholder="Search content..."
-                value={searchTerm}
-                onChange={handleSearchChange}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md"
-              />
-              <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-            </div>
-            <div className="flex space-x-2 w-full md:w-auto">
-              <button
-                onClick={() => setShowWeeklyTipModal(true)}
-                className="flex items-center px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700"
-              >
-                <Plus className="mr-2 h-5 w-5" />
-                Add Weekly Tip
-              </button>
-              <button
-                onClick={() => setShowInfoModal(true)}
-                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                <Plus className="mr-2 h-5 w-5" />
-                Add Info Content
-              </button>
-            </div>
-          </div>
+            {formError && (
+              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+                <div className="flex items-center">
+                  <AlertCircle className="h-5 w-5 text-red-400 mr-2" />
+                  <span className="text-red-700">{formError}</span>
+                  <button
+                    className="ml-auto text-sm font-medium text-red-700 underline"
+                    onClick={() => setFormError(null)}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
 
-          {/* Weekly Tips Section */}
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Weekly Tips</h2>
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              {filteredWeeklyTips.length > 0 ? (
-                <div className="divide-y divide-gray-200">
-                  {filteredWeeklyTips.map((article) => (
-                    <div key={article.id} className="p-6 hover:bg-gray-50">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="text-lg font-medium text-gray-900 mb-1">{article.title_en}</h3>
-                          <div className="flex items-center text-sm text-gray-500 mb-2">
-                            <span>Week {article.week}</span>
+            {/* Controls */}
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+              <div className="relative w-full lg:w-80">
+                <input
+                  type="text"
+                  placeholder="Search content..."
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                />
+                <Search className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                <button
+                  onClick={() => setShowWeeklyTipModal(true)}
+                  className="flex items-center justify-center px-4 py-3 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors font-medium"
+                >
+                  <Plus className="mr-2 h-5 w-5" />
+                  Add Weekly Tip
+                </button>
+                <button
+                  onClick={() => setShowInfoModal(true)}
+                  className="flex items-center justify-center px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                >
+                  <Plus className="mr-2 h-5 w-5" />
+                  Add Info Content
+                </button>
+              </div>
+            </div>
+
+            {/* Weekly Tips Section */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-pink-50 to-purple-50">
+                <h2 className="text-xl font-semibold text-gray-800">Weekly Tips</h2>
+                <p className="text-sm text-gray-600 mt-1">Manage weekly health tips for patients</p>
+              </div>
+              <div className="p-6">
+                {filteredWeeklyTips.length > 0 ? (
+                  <div className="space-y-4">
+                    {filteredWeeklyTips.map((article) => (
+                      <div
+                        key={article.id}
+                        className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-lg font-medium text-gray-900 mb-1 truncate">{article.title_en}</h3>
+                            <div className="flex items-center text-sm text-gray-500 mb-2">
+                              <span className="bg-pink-100 text-pink-800 px-2 py-1 rounded-full text-xs font-medium">
+                                Week {article.week}
+                              </span>
+                            </div>
+                            <p className="text-gray-600 mb-3 line-clamp-2">{article.description_en}</p>
+                            {article.title_am && (
+                              <p className="text-gray-600 mb-3 font-medium">Amharic: {article.title_am}</p>
+                            )}
+                            {article.image && (
+                              <img
+                                src={getImageSrc(article.image) || "/placeholder.svg"}
+                                alt={article.title_en}
+                                className="mt-2 max-w-xs rounded-md"
+                              />
+                            )}
                           </div>
-                          <p className="text-gray-600 mb-3">{article.description_en}</p>
-                          {article.title_am && (
-                            <p className="text-gray-600 mb-3 font-medium">Amharic Title: {article.title_am}</p>
-                          )}
-                          {article.description_am && (
-                            <p className="text-gray-600 mb-3">{article.description_am}</p>
-                          )}
-                          {article.image && (
-                            <img src={getImageSrc(article.image)} alt={article.title_en} className="mt-2 max-w-xs rounded-md" />
-                          )}
-                        </div>
-                        <div className="flex space-x-2">
-                          <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-full">
-                            <Edit className="h-5 w-5" />
-                          </button>
-                          <button
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-full"
-                            onClick={() => handleDeleteArticle("weekly_tips", article.id)}
-                          >
-                            <Trash2 className="h-5 w-5" />
-                          </button>
+                          <div className="flex space-x-2 ml-4">
+                            <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors">
+                              <Edit className="h-5 w-5" />
+                            </button>
+                            <button
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                              onClick={() => handleDeleteArticle("weekly_tips", article.id)}
+                            >
+                              <Trash2 className="h-5 w-5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-6 text-center">
-                  <BookOpen className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-1">No weekly tips found</h3>
-                  <p className="text-gray-600">
-                    {searchTerm ? "Try adjusting your search" : "Get started by adding your first weekly tip"}
-                  </p>
-                  {searchTerm && (
-                    <button
-                      onClick={() => setSearchTerm("")}
-                      className="mt-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
-                    >
-                      Clear search
-                    </button>
-                  )}
-                </div>
-              )}
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <BookOpen className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-1">No weekly tips found</h3>
+                    <p className="text-gray-600">
+                      {searchTerm ? "Try adjusting your search" : "Get started by adding your first weekly tip"}
+                    </p>
+                    {searchTerm && (
+                      <button
+                        onClick={() => setSearchTerm("")}
+                        className="mt-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                      >
+                        Clear search
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* Info Articles Section */}
-          <div>
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Info Content</h2>
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              {filteredInfoArticles.length > 0 ? (
-                <div className="divide-y divide-gray-200">
-                  {filteredInfoArticles.map((article) => (
-                    <div key={article.id} className="p-6 hover:bg-gray-50">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="text-lg font-medium text-gray-900 mb-1">{article.title_en}</h3>
-                          <div className="flex items-center text-sm text-gray-500 mb-2 space-x-4">
-                            {article.day && <span>Day: {article.day}</span>}
-                            {article.time && <span>Time: {article.time}</span>}
-                            {article.type && <span>Type: {article.type}</span>}
-                            <span>Favorite: {article.is_favorite ? "Yes" : "No"}</span>
+            {/* Info Articles Section */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-pink-50">
+                <h2 className="text-xl font-semibold text-gray-800">Info Content</h2>
+                <p className="text-sm text-gray-600 mt-1">Manage informational articles and resources</p>
+              </div>
+              <div className="p-6">
+                {filteredInfoArticles.length > 0 ? (
+                  <div className="space-y-4">
+                    {filteredInfoArticles.map((article) => (
+                      <div
+                        key={article.id}
+                        className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-lg font-medium text-gray-900 mb-1 truncate">{article.title_en}</h3>
+                            <div className="flex flex-wrap items-center text-sm text-gray-500 mb-2 gap-2">
+                              {article.day && (
+                                <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs">
+                                  Day: {article.day}
+                                </span>
+                              )}
+                              {article.time && (
+                                <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs">
+                                  Time: {article.time}
+                                </span>
+                              )}
+                              {article.type && (
+                                <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs">
+                                  Type: {article.type}
+                                </span>
+                              )}
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs ${article.is_favorite ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-gray-800"}`}
+                              >
+                                {article.is_favorite ? "Favorite" : "Regular"}
+                              </span>
+                            </div>
+                            <p className="text-gray-600 mb-3 line-clamp-2">{article.text_en}</p>
+                            {article.title_am && (
+                              <p className="text-gray-600 mb-3 font-medium">Amharic: {article.title_am}</p>
+                            )}
+                            {article.image && (
+                              <img
+                                src={getImageSrc(article.image) || "/placeholder.svg"}
+                                alt={article.title_en}
+                                className="mt-2 max-w-xs rounded-md"
+                              />
+                            )}
                           </div>
-                          <p className="text-gray-600 mb-3">{article.text_en}</p>
-                          {article.title_am && (
-                            <p className="text-gray-600 mb-3 font-medium">Amharic Title: {article.title_am}</p>
-                          )}
-                          {article.text_am && (
-                            <p className="text-gray-600 mb-3">{article.text_am}</p>
-                          )}
-                          {article.image && (
-                            <img src={getImageSrc(article.image)} alt={article.title_en} className="mt-2 max-w-xs rounded-md" />
-                          )}
-                        </div>
-                        <div className="flex space-x-2">
-                          <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-full">
-                            <Edit className="h-5 w-5" />
-                          </button>
-                          <button
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-full"
-                            onClick={() => handleDeleteArticle("info1", article.id)}
-                          >
-                            <Trash2 className="h-5 w-5" />
-                          </button>
+                          <div className="flex space-x-2 ml-4">
+                            <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors">
+                              <Edit className="h-5 w-5" />
+                            </button>
+                            <button
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                              onClick={() => handleDeleteArticle("info1", article.id)}
+                            >
+                              <Trash2 className="h-5 w-5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-6 text-center">
-                  <BookOpen className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-1">No info content found</h3>
-                  <p className="text-gray-600">
-                    {searchTerm ? "Try adjusting your search" : "Get started by adding your first info content"}
-                  </p>
-                  {searchTerm && (
-                    <button
-                      onClick={() => setSearchTerm("")}
-                      className="mt-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
-                    >
-                      Clear search
-                    </button>
-                  )}
-                </div>
-              )}
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <BookOpen className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-1">No info content found</h3>
+                    <p className="text-gray-600">
+                      {searchTerm ? "Try adjusting your search" : "Get started by adding your first info content"}
+                    </p>
+                    {searchTerm && (
+                      <button
+                        onClick={() => setSearchTerm("")}
+                        className="mt-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                      >
+                        Clear search
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </main>
       </div>
 
+      {/* Weekly Tip Modal */}
       {showWeeklyTipModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-gray-800">Add New Weekly Tip</h2>
@@ -440,7 +550,11 @@ const ContentManagementPage = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
                   />
                   {weeklyTipData.imagePreview && (
-                    <img src={weeklyTipData.imagePreview} alt="Preview" className="mt-2 max-w-xs rounded-md" />
+                    <img
+                      src={weeklyTipData.imagePreview || "/placeholder.svg"}
+                      alt="Preview"
+                      className="mt-2 max-w-xs rounded-md"
+                    />
                   )}
                 </div>
                 <div>
@@ -503,9 +617,10 @@ const ContentManagementPage = () => {
         </div>
       )}
 
+      {/* Info Modal */}
       {showInfoModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-gray-800">Add New Info Content</h2>
@@ -522,7 +637,7 @@ const ContentManagementPage = () => {
                     type="text"
                     value={infoData.day}
                     onChange={(e) => setInfoData({ ...infoData, day: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="Enter day (e.g., Monday)"
                   />
                 </div>
@@ -532,7 +647,7 @@ const ContentManagementPage = () => {
                     type="time"
                     value={infoData.time}
                     onChange={(e) => setInfoData({ ...infoData, time: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
                 <div>
@@ -541,7 +656,7 @@ const ContentManagementPage = () => {
                       type="checkbox"
                       checked={infoData.is_favorite}
                       onChange={(e) => setInfoData({ ...infoData, is_favorite: e.target.checked })}
-                      className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      className="mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
                     />
                     Mark as Favorite
                   </label>
@@ -552,7 +667,7 @@ const ContentManagementPage = () => {
                     type="text"
                     value={infoData.type}
                     onChange={(e) => setInfoData({ ...infoData, type: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="Enter type (e.g., Health, Nutrition)"
                   />
                 </div>
@@ -562,10 +677,14 @@ const ContentManagementPage = () => {
                     type="file"
                     accept="image/*"
                     onChange={handleImageChange(setInfoData, infoData)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                   {infoData.imagePreview && (
-                    <img src={infoData.imagePreview} alt="Preview" className="mt-2 max-w-xs rounded-md" />
+                    <img
+                      src={infoData.imagePreview || "/placeholder.svg"}
+                      alt="Preview"
+                      className="mt-2 max-w-xs rounded-md"
+                    />
                   )}
                 </div>
                 <div>
@@ -574,7 +693,7 @@ const ContentManagementPage = () => {
                     type="text"
                     value={infoData.title_en}
                     onChange={(e) => setInfoData({ ...infoData, title_en: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="Enter English title"
                   />
                 </div>
@@ -584,7 +703,7 @@ const ContentManagementPage = () => {
                     type="text"
                     value={infoData.title_am}
                     onChange={(e) => setInfoData({ ...infoData, title_am: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="Enter Amharic title"
                   />
                 </div>
@@ -593,7 +712,7 @@ const ContentManagementPage = () => {
                   <textarea
                     value={infoData.text_en}
                     onChange={(e) => setInfoData({ ...infoData, text_en: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     rows="4"
                     placeholder="Enter English text"
                   ></textarea>
@@ -603,7 +722,7 @@ const ContentManagementPage = () => {
                   <textarea
                     value={infoData.text_am}
                     onChange={(e) => setInfoData({ ...infoData, text_am: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     rows="4"
                     placeholder="Enter Amharic text"
                   ></textarea>
@@ -618,7 +737,7 @@ const ContentManagementPage = () => {
                 </button>
                 <button
                   onClick={() => handleAddArticle("info1", infoData)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
                 >
                   Add Info Content
                 </button>

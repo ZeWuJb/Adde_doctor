@@ -1,100 +1,103 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Bell, Menu, X, User } from "lucide-react"
+import { useState } from "react"
 import PropTypes from "prop-types"
-import { UserAuth } from "../../context/AuthContext"
-import { Link } from "react-router-dom"
+import { Menu, Bell } from "lucide-react"
 
-const AdminHeader = ({ sidebarOpen, setSidebarOpen, session }) => {
-  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false)
-  const { signOut } = UserAuth()
+const AdminHeader = ({ sidebarOpen, setSidebarOpen, notifications = [], unreadCount = 0, onMarkAsRead }) => {
+  const [showNotifications, setShowNotifications] = useState(false)
 
-  const handleSignOut = async () => {
-    await signOut()
+  const handleNotificationClick = (notification) => {
+    if (!notification.read && onMarkAsRead) {
+      onMarkAsRead(notification.id)
+    }
   }
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (profileDropdownOpen && !event.target.closest(".profile-dropdown")) {
-        setProfileDropdownOpen(false)
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
-    }
-  }, [profileDropdownOpen])
-
   return (
-    <header className="bg-white shadow-sm sticky top-0 z-10">
-      <div className="flex items-center justify-between h-16 px-6">
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-1 text-gray-600 md:hidden focus:outline-none hover:text-pink-600 transition-colors"
-          aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
-        >
-          {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
-
-        <div className="flex items-center ml-auto">
-          <button
-            className="relative p-1 mr-4 text-gray-600 hover:text-pink-600 transition-colors focus:outline-none"
-            aria-label="View notifications"
-          >
-            <Bell className="w-6 h-6" />
-            <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
+    <header className="bg-gray-50 border-b border-gray-200 relative z-30">
+      <div className="flex items-center justify-between px-4 py-3 sm:px-6">
+        <div className="flex items-center">
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-500 hover:text-gray-700 lg:hidden">
+            <Menu className="h-6 w-6" />
           </button>
+        </div>
 
+        <div className="flex items-center">
+          {/* Notifications */}
           <div className="relative">
             <button
-              onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-              className="flex items-center focus:outline-none"
-              aria-label="Open profile menu"
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative p-2 text-gray-500 hover:text-gray-700 focus:outline-none"
             >
-              <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
-                {session?.user?.user_metadata?.avatar_url ? (
-                  <img
-                    src={session.user.user_metadata.avatar_url || "/placeholder.svg"}
-                    alt="Profile"
-                    className="w-full h-full rounded-full object-cover"
-                    onError={(e) => {
-                      e.target.onerror = null
-                      e.target.src = "/placeholder.svg?height=32&width=32"
-                    }}
-                  />
-                ) : (
-                  <User size={16} className="text-gray-500" />
-                )}
-              </div>
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
             </button>
 
-            {profileDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 profile-dropdown">
-                <Link to="/admin/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                  My Profile
-                </Link>
-                <button
-                  onClick={handleSignOut}
-                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                >
-                  Sign Out
-                </button>
+            {showNotifications && (
+              <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                <div className="p-4 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {notifications.length > 0 ? (
+                    notifications.slice(0, 5).map((notification) => (
+                      <div
+                        key={notification.id}
+                        onClick={() => handleNotificationClick(notification)}
+                        className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${
+                          !notification.read ? "bg-blue-50" : ""
+                        }`}
+                      >
+                        <div className="flex items-start">
+                          <div className="flex-1">
+                            <p className="text-sm text-gray-900">{notification.message}</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {new Date(notification.timestamp).toLocaleString()}
+                            </p>
+                          </div>
+                          {!notification.read && <div className="w-2 h-2 bg-blue-500 rounded-full ml-2 mt-1"></div>}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-gray-500">No notifications</div>
+                  )}
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Click outside to close dropdowns */}
+      {showNotifications && (
+        <div
+          className="fixed inset-0 z-20"
+          onClick={() => {
+            setShowNotifications(false)
+          }}
+        />
+      )}
     </header>
   )
 }
-
 AdminHeader.propTypes = {
   sidebarOpen: PropTypes.bool.isRequired,
   setSidebarOpen: PropTypes.func.isRequired,
-  session: PropTypes.object.isRequired,
+  notifications: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+      message: PropTypes.string.isRequired,
+      timestamp: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.instanceOf(Date)]).isRequired,
+      read: PropTypes.bool.isRequired,
+    })
+  ),
+  unreadCount: PropTypes.number,
+  onMarkAsRead: PropTypes.func,
 }
 
 export default AdminHeader

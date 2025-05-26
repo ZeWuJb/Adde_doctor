@@ -1,9 +1,14 @@
-// Separate file for AdminLoading component to fix react-refresh/only-export-components error
-const AdminLoading = () => (
-  <div className="flex justify-center items-center h-screen">
-    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500"></div>
-    <p className="ml-3 text-lg text-gray-700">Loading admin module...</p>
-  </div>
-)
+"use client"
+
+const AdminLoading = () => {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-600 mx-auto"></div>
+        <p className="mt-4 text-gray-600">Loading admin panel...</p>
+      </div>
+    </div>
+  )
+}
 
 export default AdminLoading

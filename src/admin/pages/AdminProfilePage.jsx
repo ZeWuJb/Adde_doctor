@@ -2,15 +2,16 @@
 
 import { useState, useEffect } from "react"
 import { UserAuth } from "../../context/AuthContext"
-import { Camera, Check, AlertCircle, Save} from "lucide-react"
+import { Camera, Check, AlertCircle, Save } from "lucide-react"
 import AdminSidebar from "../components/AdminSidebar"
 import AdminHeader from "../components/AdminHeader"
 import { supabase } from "../../supabaseClient"
-import { useLocation} from "react-router-dom"
+import { useLocation } from "react-router-dom"
 
 const AdminProfilePage = () => {
   const { session, userData, signOut } = UserAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -23,6 +24,31 @@ const AdminProfilePage = () => {
   })
   const [uploadingImage, setUploadingImage] = useState(false)
   const location = useLocation()
+
+  // Check if sidebar is collapsed
+  useEffect(() => {
+    const checkSidebarState = () => {
+      const sidebar = document.querySelector("[data-sidebar]")
+      if (sidebar) {
+        const rect = sidebar.getBoundingClientRect()
+        setIsCollapsed(rect.width <= 64)
+      }
+    }
+
+    checkSidebarState()
+    window.addEventListener("resize", checkSidebarState)
+
+    const observer = new MutationObserver(checkSidebarState)
+    const sidebar = document.querySelector("[data-sidebar]")
+    if (sidebar) {
+      observer.observe(sidebar, { attributes: true, attributeFilter: ["class", "style"] })
+    }
+
+    return () => {
+      window.removeEventListener("resize", checkSidebarState)
+      observer.disconnect()
+    }
+  }, [])
 
   useEffect(() => {
     const fetchAdminProfile = async () => {
@@ -63,7 +89,6 @@ const AdminProfilePage = () => {
     const file = e.target.files[0]
     if (!file) return
 
-    // Validate image
     if (!file.type.startsWith("image/")) {
       setError("Please upload an image file")
       return
@@ -107,7 +132,6 @@ const AdminProfilePage = () => {
         throw new Error("Please fill in all required fields")
       }
 
-      // Basic email validation
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
       if (!emailRegex.test(formData.email)) {
         throw new Error("Please enter a valid email address")
@@ -141,9 +165,28 @@ const AdminProfilePage = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500"></div>
-        <p className="ml-3 text-lg text-gray-700">Loading profile...</p>
+      <div className="flex h-screen bg-gray-50">
+        <AdminSidebar
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          session={session}
+          userData={userData}
+          handleSignOut={signOut}
+          currentPath={location?.pathname || "/admin/profile"}
+        />
+        <div
+          className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${isCollapsed ? "lg:ml-16" : "lg:ml-64"}`}
+        >
+          <AdminHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} session={session} />
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+            <div className="max-w-4xl mx-auto">
+              <div className="flex justify-center items-center h-96">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500"></div>
+                <p className="ml-3 text-lg text-gray-700">Loading profile...</p>
+              </div>
+            </div>
+          </main>
+        </div>
       </div>
     )
   }
@@ -152,50 +195,64 @@ const AdminProfilePage = () => {
     <div className="flex h-screen bg-gray-50">
       <AdminSidebar
         sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
         session={session}
         userData={userData}
         handleSignOut={signOut}
         currentPath={location?.pathname || "/admin/profile"}
       />
-      <div className="flex-1 md:ml-64">
+      <div
+        className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${isCollapsed ? "lg:ml-16" : "lg:ml-64"}`}
+      >
         <AdminHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} session={session} />
-        <main className="p-6">
-
-
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-lg">
-              <div className="flex items-center">
-                <AlertCircle className="h-5 w-5 mr-2" aria-hidden="true" />
-                <span>{error}</span>
-              </div>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-pink-500 to-purple-600 rounded-xl p-6 text-white">
+              <h1 className="text-2xl sm:text-3xl font-bold mb-2">Admin Profile</h1>
+              <p className="text-pink-100">Manage your administrator account settings</p>
             </div>
-          )}
 
-          {success && (
-            <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded-lg">
-              <div className="flex items-center">
-                <Check className="h-5 w-5 mr-2" aria-hidden="true" />
-                <span>{success}</span>
+            {/* Alerts */}
+            {error && (
+              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+                <div className="flex items-center">
+                  <AlertCircle className="h-5 w-5 text-red-400 mr-2" />
+                  <span className="text-red-700">{error}</span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-            <div className="p-6">
-              <form onSubmit={handleSubmit}>
-                <div className="mb-6 flex justify-center">
+            {success && (
+              <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg">
+                <div className="flex items-center">
+                  <Check className="h-5 w-5 text-green-400 mr-2" />
+                  <span className="text-green-700">{success}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Profile Form */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-pink-50 to-purple-50">
+                <h2 className="text-lg font-semibold text-gray-900">Profile Information</h2>
+                <p className="text-sm text-gray-600 mt-1">Update your personal information and profile picture</p>
+              </div>
+
+              <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                {/* Profile Image */}
+                <div className="flex flex-col items-center space-y-4">
                   <div className="relative">
                     <img
                       src={formData.profile_url || "/placeholder.svg?height=100&width=100"}
                       alt="Admin profile picture"
-                      className="h-24 w-24 rounded-full object-cover border-2 border-gray-200"
+                      className="h-24 w-24 rounded-full object-cover border-4 border-white shadow-lg"
                     />
                     <label
                       htmlFor="admin-profile-image"
-                      className="absolute bottom-0 right-0 bg-pink-600 text-white p-1.5 rounded-full cursor-pointer shadow-md hover:bg-pink-700"
-                      aria-label="Upload profile image"
+                      className="absolute bottom-0 right-0 bg-pink-600 text-white p-2 rounded-full cursor-pointer shadow-lg hover:bg-pink-700 transition-colors"
                     >
-                      <Camera className="h-4 w-4" aria-hidden="true" />
+                      <Camera className="h-4 w-4" />
                       <input
                         type="file"
                         id="admin-profile-image"
@@ -211,11 +268,13 @@ const AdminProfilePage = () => {
                       </div>
                     )}
                   </div>
+                  <p className="text-sm text-gray-500">Click the camera icon to update your profile picture</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-1">
+                {/* Form Fields */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-2">
                       Full Name <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -224,15 +283,14 @@ const AdminProfilePage = () => {
                       name="full_name"
                       value={formData.full_name}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-colors"
                       required
-                      aria-required="true"
                     />
                   </div>
 
-                  <div className="col-span-2">
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                      Email <span className="text-red-500">*</span>
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                      Email Address <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="email"
@@ -240,17 +298,17 @@ const AdminProfilePage = () => {
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-pink-500 focus:border-pink-500"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition-colors"
                       required
-                      aria-required="true"
                     />
                   </div>
                 </div>
 
-                <div className="mt-6 flex justify-end">
+                {/* Submit Button */}
+                <div className="flex justify-end pt-6 border-t border-gray-200">
                   <button
                     type="submit"
-                    className="flex items-center px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 disabled:opacity-50"
+                    className="flex items-center px-6 py-3 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                     disabled={saving || uploadingImage}
                   >
                     {saving ? (
@@ -260,7 +318,7 @@ const AdminProfilePage = () => {
                       </>
                     ) : (
                       <>
-                        <Save className="h-4 w-4 mr-2" aria-hidden="true" />
+                        <Save className="h-4 w-4 mr-2" />
                         Save Changes
                       </>
                     )}
