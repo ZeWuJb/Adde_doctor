@@ -223,7 +223,7 @@ const PatientsPage = () => {
 
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center px-4 py-3 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                className="flex items-center px-4 py-3 bg-black border border-gray-300 rounded-lg hover:bg-black-50 transition-colors font-medium"
               >
                 <Filter className="mr-2 h-5 w-5" />
                 Filters
@@ -456,15 +456,15 @@ const PatientsPage = () => {
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <p className="text-xs text-gray-500">Age</p>
-                          <p className="text-sm font-medium">{selectedPatient.age || "N/A"}</p>
+                          <p className="text-sm text-gray-800 font-medium">{selectedPatient.age || "N/A"}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500">Gender</p>
-                          <p className="text-sm font-medium">{selectedPatient.gender || "N/A"}</p>
+                          <p className="text-sm text-gray-800 font-medium">{selectedPatient.gender || "N/A"}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500">Height</p>
-                          <p className="text-sm font-medium">
+                          <p className="text-sm text-gray-800 font-medium">
                             {selectedPatient.height
                               ? `${selectedPatient.height} ${selectedPatient.height_unit || "cm"}`
                               : "N/A"}
@@ -472,7 +472,7 @@ const PatientsPage = () => {
                         </div>
                         <div>
                           <p className="text-xs text-gray-500">Weight</p>
-                          <p className="text-sm font-medium">
+                          <p className="text-sm text-gray-800 font-medium">
                             {selectedPatient.weight
                               ? `${selectedPatient.weight} ${selectedPatient.weight_unit || "kg"}`
                               : "N/A"}
@@ -488,23 +488,23 @@ const PatientsPage = () => {
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <p className="text-xs text-gray-500">Pregnancy Week</p>
-                          <p className="text-sm font-medium">
+                          <p className="text-sm text-gray-800 font-medium">
                             {selectedPatient.pregnancy_weeks ? `${selectedPatient.pregnancy_weeks} weeks` : "N/A"}
                           </p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500">Pregnancy Days</p>
-                          <p className="text-sm font-medium">
+                          <p className="text-sm text-gray-800 font-medium">
                             {selectedPatient.pregnancy_days ? `${selectedPatient.pregnancy_days} days` : "N/A"}
                           </p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500">Start Date</p>
-                          <p className="text-sm font-medium">{formatDate(selectedPatient.pregnancy_start_date)}</p>
+                          <p className="text-sm text-gray-800 font-medium">{formatDate(selectedPatient.pregnancy_start_date)}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500">Due Date</p>
-                          <p className="text-sm font-medium">
+                          <p className="text-sm text-gray-800 font-medium">
                             {calculateDueDate(
                               selectedPatient.pregnancy_start_date,
                               selectedPatient.pregnancy_weeks,
