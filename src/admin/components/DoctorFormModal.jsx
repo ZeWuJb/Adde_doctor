@@ -6,7 +6,7 @@ import { useAdmin } from "../../hooks/useAdmin"
 import PropTypes from "prop-types"
 
 const DoctorFormModal = ({ isOpen, onClose, doctor, onSave }) => {
-  const { addDoctor, updateDoctor } = useAdmin()
+  const { updateDoctor, addDoctorWithAuth } = useAdmin()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
@@ -19,6 +19,7 @@ const DoctorFormModal = ({ isOpen, onClose, doctor, onSave }) => {
     payment_required_amount: "",
     type: "doctor",
     profile_url: "",
+    password: "",
   })
 
   const [imageFile, setImageFile] = useState(null)
@@ -34,6 +35,7 @@ const DoctorFormModal = ({ isOpen, onClose, doctor, onSave }) => {
         payment_required_amount: doctor.payment_required_amount || "",
         type: doctor.type || "doctor",
         profile_url: doctor.profile_url || "",
+        password: "",
       })
     } else {
       setFormData({
@@ -44,6 +46,7 @@ const DoctorFormModal = ({ isOpen, onClose, doctor, onSave }) => {
         payment_required_amount: "",
         type: "doctor",
         profile_url: "",
+        password: "",
       })
     }
     setImageFile(null)
@@ -132,8 +135,13 @@ const DoctorFormModal = ({ isOpen, onClose, doctor, onSave }) => {
 
     try {
       // Validate required fields
-      if (!formData.full_name || !formData.email || !formData.speciality) {
+      if (!formData.full_name || !formData.email || !formData.speciality || (!doctor && !formData.password)) {
         throw new Error("Please fill in all required fields")
+      }
+
+      // Validate password for new doctors
+      if (!doctor && formData.password.length < 6) {
+        throw new Error("Password must be at least 6 characters long")
       }
 
       // Validate email format
@@ -174,7 +182,8 @@ const DoctorFormModal = ({ isOpen, onClose, doctor, onSave }) => {
       if (doctor) {
         result = await updateDoctor(doctor.id, updatedFormData)
       } else {
-        result = await addDoctor(updatedFormData)
+        // Use addDoctorWithAuth for new doctors to create auth account
+        result = await addDoctorWithAuth(updatedFormData)
       }
 
       if (result.success) {
@@ -336,6 +345,29 @@ const DoctorFormModal = ({ isOpen, onClose, doctor, onSave }) => {
                   required
                 />
               </div>
+
+              {/* Password - Only for new doctors */}
+              {!doctor && (
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                    Default Password <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-pink-500 focus:border-pink-500"
+                    placeholder="Set a default password for the doctor"
+                    required={!doctor}
+                    minLength={6}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Doctor can change this password after first login. Minimum 6 characters.
+                  </p>
+                </div>
+              )}
 
               {/* Specialty */}
               <div>

@@ -242,7 +242,22 @@ const DoctorDashboard = () => {
   }, [doctorId])
 
   const handleSignOut = async () => {
-    await signOut()
+    try {
+      console.log("Doctor dashboard: Starting sign out...")
+      const result = await signOut()
+      if (result.success) {
+        console.log("Doctor dashboard: Sign out successful, redirecting...")
+        navigate("/signin")
+      } else {
+        console.error("Doctor dashboard: Sign out failed:", result.error)
+        // Even if signout fails, redirect to signin
+        navigate("/signin")
+      }
+    } catch (err) {
+      console.error("Doctor dashboard: Sign out error:", err)
+      // Even if there's an error, redirect to signin
+      navigate("/signin")
+    }
   }
 
   // Modified accept handler
