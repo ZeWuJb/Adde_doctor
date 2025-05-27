@@ -17,7 +17,6 @@ export const AdminContextProvider = ({ children }) => {
   const [appointments, setAppointments] = useState([])
   const [weeklyTips, setWeeklyTips] = useState([])
   const [infoArticles, setInfoArticles] = useState([])
-  const [roles, setRoles] = useState([])
   const [stats, setStats] = useState({
     doctorsCount: 0,
     patientsCount: 0,
@@ -179,60 +178,6 @@ export const AdminContextProvider = ({ children }) => {
     }
   }, [])
 
-  const fetchRoles = useCallback(async () => {
-    try {
-      const { data: adminData } = await supabase
-        .from("admins")
-        .select("id")
-        .eq("user_id", session?.user?.id)
-        .maybeSingle()
-      const isAdmin = !!adminData
-      if (!isAdmin) {
-        const { data: rolesData, error } = await supabase.from("roles").select("*").order("name", { ascending: true })
-        if (error) throw error
-        const rolesWithLimitedDetails = rolesData.map((role) => ({
-          ...role,
-          permissions: [],
-          userCount: 0,
-        }))
-        setRoles(rolesWithLimitedDetails)
-        return
-      }
-      const { data: rolesData, error: rolesError } = await supabase
-        .from("roles")
-        .select("*")
-        .order("name", { ascending: true })
-      if (rolesError) throw rolesError
-      const { data: permData, error: permError } = await supabase.from("permissions").select("*")
-      if (permError) throw permError
-      const { data: rpData, error: rpError } = await supabase.from("role_permissions").select("role_id, permission_id")
-      if (rpError) throw rpError
-      const { data: urData, error: urError } = await supabase.from("user_roles").select("role_id")
-      if (urError) {
-        const rolesWithPermissions = rolesData.map((role) => {
-          const permIds = rpData.filter((rp) => rp.role_id === role.id).map((rp) => rp.permission_id)
-          const permissions = permData.filter((perm) => permIds.includes(perm.id)).map((perm) => perm.name)
-          return { ...role, permissions, userCount: 0 }
-        })
-        setRoles(rolesWithPermissions)
-        return
-      }
-      const userCounts = urData.reduce((acc, ur) => {
-        acc[ur.role_id] = (acc[ur.role_id] || 0) + 1
-        return acc
-      }, {})
-      const rolesWithDetails = rolesData.map((role) => {
-        const permIds = rpData.filter((rp) => rp.role_id === role.id).map((rp) => rp.permission_id)
-        const permissions = permData.filter((perm) => permIds.includes(perm.id)).map((perm) => perm.name)
-        return { ...role, permissions, userCount: userCounts[role.id] || 0 }
-      })
-      setRoles(rolesWithDetails)
-    } catch (err) {
-      console.error("Error fetching roles:", err.message)
-      setError("Failed to fetch user roles. Please try again later.")
-    }
-  }, [session])
-
   const fetchStats = useCallback(async () => {
     try {
       const { count: doctorsCount } = await supabase.from("doctors").select("*", { count: "exact", head: true })
@@ -288,7 +233,6 @@ export const AdminContextProvider = ({ children }) => {
         fetchWeeklyTips(),
         fetchInfoArticles(),
         fetchBabyNames(), // Add this line
-        fetchRoles(),
         fetchStats(),
         fetchSystemStatus(),
       ])
@@ -305,7 +249,6 @@ export const AdminContextProvider = ({ children }) => {
     fetchAppointments,
     fetchWeeklyTips,
     fetchInfoArticles,
-    fetchRoles,
     fetchStats,
     fetchSystemStatus,
     fetchBabyNames,
@@ -576,7 +519,6 @@ export const AdminContextProvider = ({ children }) => {
     weeklyTips,
     infoArticles,
     babyNames, // Add this line
-    roles,
     stats,
     systemStatus,
     refreshData,
