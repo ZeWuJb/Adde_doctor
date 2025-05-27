@@ -81,7 +81,7 @@ export const fetchTemporaryAppointments = async (doctorId) => {
   }
 }
 
-// Accept a temporary appointment
+// Accept a temporary appointment (now without generating video link immediately)
 export const acceptTemporaryAppointment = async (appointmentId) => {
   try {
     // First, get the temporary appointment details
@@ -94,11 +94,7 @@ export const acceptTemporaryAppointment = async (appointmentId) => {
     if (fetchError) throw fetchError
     if (!tempAppointment) throw new Error("Temporary appointment not found")
 
-    // Generate a video conference link
-    const meetingId = `meeting_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
-    const videoLink = `https://meet.jit.si/${meetingId}`
-
-    // Create a permanent appointment
+    // Create a permanent appointment WITHOUT video link (payment required first)
     const { data: newAppointment, error: insertError } = await supabase
       .from("appointments")
       .insert({
@@ -106,8 +102,8 @@ export const acceptTemporaryAppointment = async (appointmentId) => {
         mother_id: tempAppointment.mother_id,
         requested_time: tempAppointment.requested_time,
         status: "accepted",
-        payment_status: "unpaid",
-        video_conference_link: videoLink,
+        payment_status: "unpaid", // Payment required
+        video_conference_link: null, // Will be generated after payment
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -137,7 +133,6 @@ export const acceptTemporaryAppointment = async (appointmentId) => {
       }
     } catch (err) {
       console.warn("Could not update consultation count:", err.message)
-      // Don't fail the whole operation if just this part fails
     }
 
     return { success: true, data: newAppointment[0] }
@@ -700,4 +695,3 @@ export const saveAppointmentWhenAccepted = async (appointmentData) => {
     return { success: false, error }
   }
 }
-

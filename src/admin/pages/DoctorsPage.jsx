@@ -25,31 +25,6 @@ const DoctorsPage = () => {
   const [actionSuccess, setActionSuccess] = useState(null)
   const location = useLocation()
 
-  // Check if sidebar is collapsed
-  // useEffect(() => {
-  //   const checkSidebarState = () => {
-  //     const sidebar = document.querySelector("[data-sidebar]")
-  //     if (sidebar) {
-  //       const rect = sidebar.getBoundingClientRect()
-  //       setIsCollapsed(rect.width <= 64)
-  //     }
-  //   }
-
-  //   checkSidebarState()
-  //   window.addEventListener("resize", checkSidebarState)
-
-  //   const observer = new MutationObserver(checkSidebarState)
-  //   const sidebar = document.querySelector("[data-sidebar]")
-  //   if (sidebar) {
-  //     observer.observe(sidebar, { attributes: true, attributeFilter: ["class", "style"] })
-  //   }
-
-  //   return () => {
-  //     window.removeEventListener("resize", checkSidebarState)
-  //     observer.disconnect()
-  //   }
-  // }, [])
-
   useEffect(() => {
     const lowerSearchTerm = searchTerm.toLowerCase().trim()
     if (lowerSearchTerm === "") {
